@@ -1,5 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { prepare } from '../exps/01triangle/main';
+
+onMounted(() => {
+  prepare()
+})
 
 </script>
 

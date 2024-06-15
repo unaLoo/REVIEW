@@ -24,8 +24,9 @@ export const main = async () => {
 
 
     const aposLocation = gl.getAttribLocation(program, 'a_position')
-    const atexLocation = gl.getAttribLocation(program, 'a_texcoord')
+    const atexLocation = gl.getAttribLocation(program, 'a_texCoord')
     const mTexLocation = gl.getUniformLocation(program, 'myTexture')
+    console.log(aposLocation, atexLocation, mTexLocation)
     const vao = gl.createVertexArray()!
     gl.bindVertexArray(vao)
     let positionData = [
@@ -56,7 +57,9 @@ export const main = async () => {
     gl.enableVertexAttribArray(atexLocation)
     gl.vertexAttribPointer(atexLocation, 2, gl.FLOAT, false, 0, 0)
 
-    const textureData = (await axios.get('/images/02texture/leaf.png', { responseType: 'arraybuffer' })).data
+    // const image = (await axios.get('/images/02texture/leaves.jpg', { responseType: 'arraybuffer' })).data
+    const image = await util.loadImageBitmap('/images/02texture/leaves.jpg') as ImageBitmap
+    console.log(image)
     const myTexture = gl.createTexture()!
     gl.activeTexture(gl.TEXTURE0)
     gl.bindTexture(gl.TEXTURE_2D, myTexture)
@@ -64,8 +67,7 @@ export const main = async () => {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-    console.log(textureData)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 526, 353, 0, gl.RGBA, gl.UNSIGNED_BYTE, textureData)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, image.width, image.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, image)
 
     const render = () => {
         // resize
@@ -77,8 +79,11 @@ export const main = async () => {
         gl.useProgram(program)
         gl.bindVertexArray(vao)
         gl.uniform1i(mTexLocation, 0)
+        gl.drawArrays(gl.TRIANGLES, 0, 6)
+        requestAnimationFrame(render)
 
     }
+    render()
 
 }
 

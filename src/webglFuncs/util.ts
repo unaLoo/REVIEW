@@ -42,3 +42,23 @@ export function resizeCanvasToDisplaySize(canvas: HTMLCanvasElement) {
 
     return needResize
 }
+
+export async function loadImageBitmap(url: string) {
+    return new Promise((resolve, reject) => {
+        // 创建一个Image对象
+        const image = new Image();
+        image.src = url;
+
+        // 当图片加载完成时，使用createImageBitmap函数来创建ImageBitmap
+        image.onload = () => {
+            createImageBitmap(image).then(resolve).catch(reject);
+        };
+
+        // 当图片加载失败时，拒绝Promise
+        image.onerror = () => {
+            reject(new Error('Image failed to load'));
+        };
+
+        // 设置图片的src属性为提供的URL
+    });
+}

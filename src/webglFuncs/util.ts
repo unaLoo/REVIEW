@@ -8,7 +8,7 @@ export function createShader(gl: WebGL2RenderingContext, type: number, source: s
     if (success) {
         return shader;
     }
-    console.log(gl.getShaderInfoLog(shader));
+    console.warn(gl.getShaderInfoLog(shader));
     gl.deleteShader(shader);
 }
 
@@ -21,7 +21,7 @@ export function createProgram(gl: WebGL2RenderingContext, vertexShader: WebGLSha
     if (success) {
         return program;
     }
-    console.log(gl.getProgramInfoLog(program));
+    console.warn(gl.getProgramInfoLog(program));
     gl.deleteProgram(program);
 }
 

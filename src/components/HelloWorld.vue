@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { prepare } from '../exps/01triangle/main';
+import { onMounted } from 'vue'
+// import { prepare } from '../exps/01triangle/main';
+import { main } from '../exps/02texture/main'
 
 onMounted(() => {
-  prepare()
+  main()
 })
 
 </script>

@@ -9,6 +9,7 @@ in vec2 a_texCoord;
 
 // Used to pass in the resolution of the canvas
 uniform vec2 u_resolution;
+uniform float u_flipY;
 
 // Used to pass the texture coordinates to the fragment shader
 out vec2 v_texCoord;
@@ -25,7 +26,7 @@ void main() {
   // convert from 0->2 to -1->+1 (clipspace)
   vec2 clipSpace = zeroToTwo - 1.0;
 
-  gl_Position = vec4(clipSpace * vec2(1, -1), 0, 1);
+  gl_Position = vec4(clipSpace * vec2(1, u_flipY), 0, 1);
 
   // pass the texCoord to the fragment shader
   // The GPU will interpolate this value between points.
@@ -42,6 +43,10 @@ precision highp float;
 // our texture
 uniform sampler2D u_image;
 
+// the convolution kernal data
+uniform float u_kernel[9];
+uniform float u_kernelWeight;
+
 // the texCoords passed in from the vertex shader.
 in vec2 v_texCoord;
 
@@ -49,15 +54,29 @@ in vec2 v_texCoord;
 out vec4 outColor;
 
 void main() {
-  outColor = texture(u_image, v_texCoord);
+  vec2 onePixel = vec2(1) / vec2(textureSize(u_image, 0));
+
+  vec4 colorSum =
+      texture(u_image, v_texCoord + onePixel * vec2(-1, -1)) * u_kernel[0] +
+      texture(u_image, v_texCoord + onePixel * vec2( 0, -1)) * u_kernel[1] +
+      texture(u_image, v_texCoord + onePixel * vec2( 1, -1)) * u_kernel[2] +
+      texture(u_image, v_texCoord + onePixel * vec2(-1,  0)) * u_kernel[3] +
+      texture(u_image, v_texCoord + onePixel * vec2( 0,  0)) * u_kernel[4] +
+      texture(u_image, v_texCoord + onePixel * vec2( 1,  0)) * u_kernel[5] +
+      texture(u_image, v_texCoord + onePixel * vec2(-1,  1)) * u_kernel[6] +
+      texture(u_image, v_texCoord + onePixel * vec2( 0,  1)) * u_kernel[7] +
+      texture(u_image, v_texCoord + onePixel * vec2( 1,  1)) * u_kernel[8] ;
+  outColor = vec4((colorSum / u_kernelWeight).rgb, 1);
 }
 `;
 
-var image = new Image();
+function main() {
+  var image = new Image();
   image.src = "https://webgl2fundamentals.org/webgl/resources/leaves.jpg";  // MUST BE SAME DOMAIN!!!
   image.onload = function() {
-  render(image);
-};
+    render(image);
+  };
+}
 
 function render(image) {
   // Get A WebGL context
@@ -79,6 +98,9 @@ function render(image) {
   // lookup uniforms
   var resolutionLocation = gl.getUniformLocation(program, "u_resolution");
   var imageLocation = gl.getUniformLocation(program, "u_image");
+  var kernelLocation = gl.getUniformLocation(program, "u_kernel[0]");
+  var kernelWeightLocation = gl.getUniformLocation(program, "u_kernelWeight");
+  var flipYLocation = gl.getUniformLocation(program, "u_flipY");
 
   // Create a vertex array object (attribute state)
   var vao = gl.createVertexArray();
@@ -129,22 +151,21 @@ function render(image) {
   gl.vertexAttribPointer(
       texCoordAttributeLocation, size, type, normalize, stride, offset);
 
-  // Create a texture.
-  var texture = gl.createTexture();
+  function createAndSetupTexture(gl) {
+    var texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
 
-  // make unit 0 the active texture uint
-  // (ie, the unit all other texture commands will affect
-  gl.activeTexture(gl.TEXTURE0 + 0);
+    // Set up texture so we can render any size image and so we are
+    // working with pixels.
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    return texture;
+  }
 
-  // Bind it to texture unit 0' 2D bind point
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-
-  // Set the parameters so we don't need mips and so we're not filtering
-  // and we don't repeat at the edges
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  // Create a texture and put the image in it.
+  var originalImageTexture = createAndSetupTexture(gl);
 
   // Upload the image into the texture.
   var mipLevel = 0;               // the largest mip
@@ -158,27 +179,34 @@ function render(image) {
                 srcType,
                 image);
 
-  webglUtils.resizeCanvasToDisplaySize(gl.canvas);
+  // create 2 textures and attach them to framebuffers.
+  var textures = [];
+  var framebuffers = [];
+  for (var ii = 0; ii < 2; ++ii) {
+    var texture = createAndSetupTexture(gl);
+    textures.push(texture);
 
-  // Tell WebGL how to convert from clip space to pixels
-  gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    // make the texture the same size as the image
+    var mipLevel = 0;               // the largest mip
+    var internalFormat = gl.RGBA;   // format we want in the texture
+    var border = 0;                 // must be 0
+    var srcFormat = gl.RGBA;        // format of data we are supplying
+    var srcType = gl.UNSIGNED_BYTE; // type of data we are supplying
+    var data = null;                // no data = create a blank texture
+    gl.texImage2D(
+        gl.TEXTURE_2D, mipLevel, internalFormat, image.width, image.height, border,
+        srcFormat, srcType, data);
 
-  // Clear the canvas
-  gl.clearColor(0, 0, 0, 0);
-  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    // Create a framebuffer
+    var fbo = gl.createFramebuffer();
+    framebuffers.push(fbo);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
 
-  // Tell it to use our program (pair of shaders)
-  gl.useProgram(program);
-
-  // Bind the attribute/buffer set we want.
-  gl.bindVertexArray(vao);
-
-  // Pass in the canvas resolution so we can convert from
-  // pixels to clipspace in the shader
-  gl.uniform2f(resolutionLocation, gl.canvas.width, gl.canvas.height);
-
-  // Tell the shader to get the texture from texture unit 0
-  gl.uniform1i(imageLocation, 0);
+    // Attach a texture to it.
+    var attachmentPoint = gl.COLOR_ATTACHMENT0;
+    gl.framebufferTexture2D(
+        gl.FRAMEBUFFER, attachmentPoint, gl.TEXTURE_2D, texture, mipLevel);
+  }
 
   // Bind the position buffer so gl.bufferData that will be called
   // in setRectangle puts data in the position buffer
@@ -187,11 +215,244 @@ function render(image) {
   // Set a rectangle the same size as the image.
   setRectangle(gl, 0, 0, image.width, image.height);
 
-  // Draw the rectangle.
-  var primitiveType = gl.TRIANGLES;
-  var offset = 0;
-  var count = 6;
-  gl.drawArrays(primitiveType, offset, count);
+  // Define several convolution kernels
+  var kernels = {
+    normal: [
+      0, 0, 0,
+      0, 1, 0,
+      0, 0, 0,
+    ],
+    gaussianBlur: [
+      0.045, 0.122, 0.045,
+      0.122, 0.332, 0.122,
+      0.045, 0.122, 0.045,
+    ],
+    gaussianBlur2: [
+      1, 2, 1,
+      2, 4, 2,
+      1, 2, 1,
+    ],
+    gaussianBlur3: [
+      0, 1, 0,
+      1, 1, 1,
+      0, 1, 0,
+    ],
+    unsharpen: [
+      -1, -1, -1,
+      -1,  9, -1,
+      -1, -1, -1,
+    ],
+    sharpness: [
+       0, -1,  0,
+      -1,  5, -1,
+       0, -1,  0,
+    ],
+    sharpen: [
+       -1, -1, -1,
+       -1, 16, -1,
+       -1, -1, -1,
+    ],
+    edgeDetect: [
+       -0.125, -0.125, -0.125,
+       -0.125,  1,     -0.125,
+       -0.125, -0.125, -0.125,
+    ],
+    edgeDetect2: [
+       -1, -1, -1,
+       -1,  8, -1,
+       -1, -1, -1,
+    ],
+    edgeDetect3: [
+       -5, 0, 0,
+        0, 0, 0,
+        0, 0, 5,
+    ],
+    edgeDetect4: [
+       -1, -1, -1,
+        0,  0,  0,
+        1,  1,  1,
+    ],
+    edgeDetect5: [
+       -1, -1, -1,
+        2,  2,  2,
+       -1, -1, -1,
+    ],
+    edgeDetect6: [
+       -5, -5, -5,
+       -5, 39, -5,
+       -5, -5, -5,
+    ],
+    sobelHorizontal: [
+        1,  2,  1,
+        0,  0,  0,
+       -1, -2, -1,
+    ],
+    sobelVertical: [
+        1,  0, -1,
+        2,  0, -2,
+        1,  0, -1,
+    ],
+    previtHorizontal: [
+        1,  1,  1,
+        0,  0,  0,
+       -1, -1, -1,
+    ],
+    previtVertical: [
+        1,  0, -1,
+        1,  0, -1,
+        1,  0, -1,
+    ],
+    boxBlur: [
+        0.111, 0.111, 0.111,
+        0.111, 0.111, 0.111,
+        0.111, 0.111, 0.111,
+    ],
+    triangleBlur: [
+        0.0625, 0.125, 0.0625,
+        0.125,  0.25,  0.125,
+        0.0625, 0.125, 0.0625,
+    ],
+    emboss: [
+       -2, -1,  0,
+       -1,  1,  1,
+        0,  1,  2,
+    ],
+  };
+
+  var effects = [
+    { name: "normal", on: true },
+    { name: "gaussianBlur", },
+    { name: "gaussianBlur2", on: true },
+    { name: "gaussianBlur3", on: true },
+    { name: "unsharpen", },
+    { name: "sharpness", },
+    { name: "sharpen", },
+    { name: "edgeDetect", },
+    { name: "edgeDetect2", },
+    { name: "edgeDetect3", },
+    { name: "edgeDetect4", },
+    { name: "edgeDetect5", },
+    { name: "edgeDetect6", },
+    { name: "sobelHorizontal", },
+    { name: "sobelVertical", },
+    { name: "previtHorizontal", },
+    { name: "previtVertical", },
+    { name: "boxBlur", },
+    { name: "triangleBlur", },
+    { name: "emboss", },
+  ];
+
+  // Setup a ui.
+  var ui = document.querySelector("#ui");
+  var table = document.createElement("table");
+  var tbody = document.createElement("tbody");
+  for (var ii = 0; ii < effects.length; ++ii) {
+    var effect = effects[ii];
+    var tr = document.createElement("tr");
+    var td = document.createElement("td");
+    var chk = document.createElement("input");
+    chk.value = effect.name;
+    chk.type = "checkbox";
+    if (effect.on) {
+      chk.checked = "true";
+    }
+    chk.onchange = drawEffects;
+    td.appendChild(chk);
+    td.appendChild(document.createTextNode(effect.name));
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  ui.appendChild(table);
+  $("#ui table").tableDnD({onDrop: drawEffects});
+
+  drawEffects();
+
+  function computeKernelWeight(kernel) {
+    var weight = kernel.reduce(function(prev, curr) {
+        return prev + curr;
+    });
+    return weight <= 0 ? 1 : weight;
+  }
+
+  function drawEffects() {
+    webglUtils.resizeCanvasToDisplaySize(gl.canvas);
+
+    // Tell WebGL how to convert from clip space to pixels
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+    // Clear the canvas
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Tell it to use our program (pair of shaders)
+    gl.useProgram(program);
+
+    // Bind the attribute/buffer set we want.
+    gl.bindVertexArray(vao);
+
+    // start with the original image on unit 0
+    gl.activeTexture(gl.TEXTURE0 + 0);
+    gl.bindTexture(gl.TEXTURE_2D, originalImageTexture);
+
+    // Tell the shader to get the texture from texture unit 0
+    gl.uniform1i(imageLocation, 0);
+
+    // don't y flip images while drawing to the textures
+    gl.uniform1f(flipYLocation, 1);
+
+    // loop through each effect we want to apply.
+    var count = 0;
+    for (var ii = 0; ii < tbody.rows.length; ++ii) {
+      var checkbox = tbody.rows[ii].firstChild.firstChild;
+      if (checkbox.checked) {
+        // Setup to draw into one of the framebuffers.
+        setFramebuffer(framebuffers[count % 2], image.width, image.height);
+
+        drawWithKernel(checkbox.value);
+
+        // for the next draw, use the texture we just rendered to.
+        gl.bindTexture(gl.TEXTURE_2D, textures[count % 2]);
+
+        // increment count so we use the other texture next time.
+        ++count;
+      }
+    }
+
+    // finally draw the result to the canvas.
+    gl.uniform1f(flipYLocation, -1);  // need to y flip for canvas
+
+    setFramebuffer(null, gl.canvas.width, gl.canvas.height);
+
+    // Clear the canvas
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    drawWithKernel("normal");
+  }
+
+  function setFramebuffer(fbo, width, height) {
+    // make this the framebuffer we are rendering to.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+
+    // Tell the shader the resolution of the framebuffer.
+    gl.uniform2f(resolutionLocation, width, height);
+
+    // Tell WebGL how to convert from clip space to pixels
+    gl.viewport(0, 0, width, height);
+  }
+
+  function drawWithKernel(name) {
+    // set the kernel and it's weight
+    gl.uniform1fv(kernelLocation, kernels[name]);
+    gl.uniform1f(kernelWeightLocation, computeKernelWeight(kernels[name]));
+
+    // Draw the rectangle.
+    var primitiveType = gl.TRIANGLES;
+    var offset = 0;
+    var count = 6;
+    gl.drawArrays(primitiveType, offset, count);
+  }
 }
 
 function setRectangle(gl, x, y, width, height) {
@@ -209,3 +470,6 @@ function setRectangle(gl, x, y, width, height) {
   ]), gl.STATIC_DRAW);
 }
 
+$(function(){
+  main();
+});

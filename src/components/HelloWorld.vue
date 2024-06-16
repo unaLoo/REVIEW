@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 // import { prepare } from '../exps/01triangle/main';
-import { main } from '../exps/02texture/main'
+import { main, main2 } from '../exps/02texture/main'
 
 onMounted(() => {
-  main()
+  main2()
 })
 
 </script>
@@ -15,6 +15,7 @@ onMounted(() => {
 
     </canvas>
   </div>
+  <div id="ui"></div>
 </template>
 
 <style scoped lang="scss">
@@ -32,5 +33,14 @@ onMounted(() => {
     height: 90%;
     background-color: gray;
   }
+
 }
+
+#ui{
+    position: absolute;
+    top: 0;
+    right: 0;
+    z-index: 999;
+    background-color: rgba($color: #eb8e8e, $alpha: 0.6);
+  }
 </style>

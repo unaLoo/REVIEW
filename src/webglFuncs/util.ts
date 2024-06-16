@@ -48,17 +48,46 @@ export async function loadImageBitmap(url: string) {
         // 创建一个Image对象
         const image = new Image();
         image.src = url;
-
         // 当图片加载完成时，使用createImageBitmap函数来创建ImageBitmap
         image.onload = () => {
             createImageBitmap(image).then(resolve).catch(reject);
         };
-
         // 当图片加载失败时，拒绝Promise
         image.onerror = () => {
             reject(new Error('Image failed to load'));
         };
-
         // 设置图片的src属性为提供的URL
     });
+}
+
+export function createEmptyTexture(gl: WebGL2RenderingContext) {
+
+    const texture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+
+    return texture
+}
+
+export function initGL(canvasId: string) {
+    const canvas = document.querySelector(`#${canvasId}`) as HTMLCanvasElement
+    const gl = canvas.getContext('webgl2', {
+        premultipliedAlpha: true
+    }) as WebGL2RenderingContext
+    if (!gl) {
+        console.warn('webgl2 not supported!')
+        return
+    }
+    resizeCanvasToDisplaySize(gl.canvas as HTMLCanvasElement)
+    return gl
+}
+
+export function createVBO(gl: WebGL2RenderingContext, data: Array<number>) {
+    const buffer = gl.createBuffer()!
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW)
+    return buffer
 }

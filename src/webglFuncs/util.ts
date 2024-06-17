@@ -91,3 +91,78 @@ export function createVBO(gl: WebGL2RenderingContext, data: Array<number>) {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW)
     return buffer
 }
+
+
+
+////// matrix
+// a simple 3x3 matrix class
+export class M3 {
+    value: Array<number>
+    constructor(data: Array<number> = [1, 0, 0, 0, 1, 0, 0, 0, 1]) {
+        this.value = data
+    }
+
+    transition(x: number, y: number): M3 {
+        let transMat = new M3([
+            1, 0, 0,
+            0, 1, 0,
+            x, y, 1
+        ])
+        return this.mutiply(transMat.value, this.value)
+    }
+
+    scale(x: number, y: number): M3 {
+        let scaleMat = new M3([
+            x, 0, 0,
+            0, y, 0,
+            0, 0, 1
+        ])
+        return this.mutiply(scaleMat.value, this.value)
+    }
+
+    rotate(angle: number): M3 {
+        let rad = angle * Math.PI / 180
+        let s = Math.sin(rad)
+        let c = Math.cos(rad)
+        let rotateMat = new M3([
+            c, -s, 0,
+            s, c, 0,
+            0, 0, 1
+        ])
+        return this.mutiply(rotateMat.value, this.value)
+    }
+
+    mutiply(a: any, b: any): M3 {
+
+        var a00 = a[0 * 3 + 0]
+        var a01 = a[0 * 3 + 1]
+        var a02 = a[0 * 3 + 2]
+        var a10 = a[1 * 3 + 0]
+        var a11 = a[1 * 3 + 1]
+        var a12 = a[1 * 3 + 2]
+        var a20 = a[2 * 3 + 0]
+        var a21 = a[2 * 3 + 1]
+        var a22 = a[2 * 3 + 2]
+        var b00 = b[0 * 3 + 0]
+        var b01 = b[0 * 3 + 1]
+        var b02 = b[0 * 3 + 2]
+        var b10 = b[1 * 3 + 0]
+        var b11 = b[1 * 3 + 1]
+        var b12 = b[1 * 3 + 2]
+        var b20 = b[2 * 3 + 0]
+        var b21 = b[2 * 3 + 1]
+        var b22 = b[2 * 3 + 2]
+
+        return new M3([
+            b00 * a00 + b01 * a10 + b02 * a20,
+            b00 * a01 + b01 * a11 + b02 * a21,
+            b00 * a02 + b01 * a12 + b02 * a22,
+            b10 * a00 + b11 * a10 + b12 * a20,
+            b10 * a01 + b11 * a11 + b12 * a21,
+            b10 * a02 + b11 * a12 + b12 * a22,
+            b20 * a00 + b21 * a10 + b22 * a20,
+            b20 * a01 + b21 * a11 + b22 * a21,
+            b20 * a02 + b21 * a12 + b22 * a22
+        ])
+    }
+}

@@ -1,5 +1,6 @@
 import * as util from '../../webglFuncs/util'
 import axios from 'axios'
+import * as dat from 'dat.gui'
 
 /// 简单的图像处理
 export const main = async () => {
@@ -90,8 +91,6 @@ export const main2 = async () => {
     const kernelLocation = gl.getUniformLocation(program, "u_kernel[0]");
     const kernelWeightLocation = gl.getUniformLocation(program, "u_kernelWeight");
 
-
-
     const vao = gl.createVertexArray()!
     gl.bindVertexArray(vao)
     let pos = [
@@ -126,12 +125,6 @@ export const main2 = async () => {
     gl.vertexAttribPointer(aUvLocation, 2, gl.FLOAT, false, 0, 0)
 
     let image = await util.loadImageBitmap('/images/02texture/leaves.jpg') as ImageBitmap
-    // let imgTextureLocation = gl.getUniformLocation(program, 'myTexture')
-    // gl.activeTexture(gl.TEXTURE0)
-    // const imgTexture = util.createEmptyTexture(gl)
-    // gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
-
-
     const originalTexture = util.createEmptyTexture(gl)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
 
@@ -153,7 +146,6 @@ export const main2 = async () => {
 
 
 
-
     const render = () => {
         console.log('render!')
         // resize
@@ -172,39 +164,27 @@ export const main2 = async () => {
         gl.uniform1f(flipYlocation, -1.0)
 
         let count = 0
-        for (let i = 0; i < tbody.rows.length; i++) {
-            var checkbox = tbody.rows[i].firstChild!.firstChild! as HTMLInputElement;
-            if (checkbox.checked) {
+        for (let name in (controller)) {
+            if ((controller as any)['' + name]) {
                 if (count % 2 == 0) {
-
                     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo1)
                     gl.viewport(0, 0, image.width, image.height)
-                    let name = checkbox.value as string
                     gl.uniform1fv(kernelLocation, kernels[name])
                     gl.uniform1f(kernelWeightLocation, computeKernelWeight(kernels[name]))
-
-                    // Draw the rectangle.
-                    gl.drawArrays(gl.TRIANGLES, 0, 6)// draw to fbo1 --> to texture1 
-                    gl.bindTexture(gl.TEXTURE_2D, texture1)// render textuer2
+                    gl.drawArrays(gl.TRIANGLES, 0, 6)
+                    gl.bindTexture(gl.TEXTURE_2D, texture1)
                 }
                 else {
-
                     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo2)
                     gl.viewport(0, 0, image.width, image.height)
-
-                    let name = checkbox.value as string
                     gl.uniform1fv(kernelLocation, kernels[name])
                     gl.uniform1f(kernelWeightLocation, computeKernelWeight(kernels[name]))
-
-                    // Draw the rectangle.
-                    gl.drawArrays(gl.TRIANGLES, 0, 6)// draw to fbo2 --> to texture2 
-                    gl.bindTexture(gl.TEXTURE_2D, texture2)// render textuer1
+                    gl.drawArrays(gl.TRIANGLES, 0, 6)
+                    gl.bindTexture(gl.TEXTURE_2D, texture2)
                 }
-
-                // increment count so we use the other texture next time.
-                ++count;
+                count++
             }
-        }   
+        }
         gl.uniform1f(flipYlocation, 1.0)
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
@@ -217,47 +197,69 @@ export const main2 = async () => {
 
         // Draw the rectangle.
         gl.drawArrays(gl.TRIANGLES, 0, 6)
-        // requestAnimationFrame(render)
-
     }
-    // render()
 
-
-
-
-
-    // Setup a ui.
-    var ui = document.querySelector("#ui")!;
-    var table = document.createElement("table");
-    var tbody = document.createElement("tbody");
-    for (var ii = 0; ii < effects.length; ++ii) {
-        var effect = effects[ii];
-        var tr = document.createElement("tr");
-        var td = document.createElement("td");
-        var chk = document.createElement("input");
-        chk.value = effect.name;
-        chk.type = "checkbox";
-        if (effect.on) {
-            chk.checked = true;
-        }
-        chk.onchange = render;
-        td.appendChild(chk);
-        td.appendChild(document.createTextNode(effect.name));
-        tr.appendChild(td);
-        tbody.appendChild(tr);
+    var controller = {
+        "normal": true,
+        "gaussianBlur": false,
+        "gaussianBlur2": false,
+        "gaussianBlur3": false,
+        "unsharpen": false,
+        "sharpness": false,
+        "sharpen": false,
+        "edgeDetect": false,
+        "edgeDetect2": false,
+        "edgeDetect3": false,
+        "edgeDetect4": false,
+        "edgeDetect5": false,
+        "edgeDetect6": false,
+        "sobelHorizontal": false,
+        "sobelVertical": false,
+        "previtHorizontal": false,
+        "previtVertical": false,
+        "boxBlur": false,
+        "triangleBlur": false,
+        "emboss": false,
     }
-    table.appendChild(tbody);
-    ui.appendChild(table);
-    // $("#ui table").tableDnD({ onDrop: drawEffects });
+    const gui = new dat.GUI()
+    gui.domElement.style.position = 'absolute'
+    gui.domElement.style.top = '2vh'
+    gui.domElement.style.right = '10vw'
+    gui.add(controller, "normal", true).onChange(render)
+    gui.add(controller, "gaussianBlur", false).onChange(render)
+    gui.add(controller, "gaussianBlur2", false).onChange(render)
+    gui.add(controller, "gaussianBlur3", false).onChange(render)
+    gui.add(controller, "unsharpen", false).onChange(render)
+    gui.add(controller, "sharpness", false).onChange(render)
+    gui.add(controller, "sharpen", false).onChange(render)
+    gui.add(controller, "edgeDetect", false).onChange(render)
+    gui.add(controller, "edgeDetect2", false).onChange(render)
+    gui.add(controller, "edgeDetect3", false).onChange(render)
+    gui.add(controller, "edgeDetect4", false).onChange(render)
+    gui.add(controller, "edgeDetect5", false).onChange(render)
+    gui.add(controller, "edgeDetect6", false).onChange(render)
+    gui.add(controller, "sobelHorizontal", false).onChange(render)
+    gui.add(controller, "sobelVertical", false).onChange(render)
+    gui.add(controller, "previtHorizontal", false).onChange(render)
+    gui.add(controller, "previtVertical", false).onChange(render)
+    gui.add(controller, "boxBlur", false).onChange(render)
+    gui.add(controller, "triangleBlur", false).onChange(render)
+    gui.add(controller, "emboss", false).onChange(render)
 
     render()
 
 }
 
 function computeKernelWeight(kernel: Array<number>) {
-    var weight = kernel.reduce(function (prev, curr) {
-        return prev + curr;
-    });
+    // var weight = kernel.reduce(function (prev, curr) {
+    //     return prev + curr;
+    // });
+    // return weight <= 0 ? 1 : weight;
+
+    let weight = 0;
+    for (var i = 0; i < kernel.length; ++i) {
+        weight += kernel[i];
+    }
     return weight <= 0 ? 1 : weight;
 }
 

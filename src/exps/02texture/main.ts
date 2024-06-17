@@ -85,6 +85,7 @@ export const main2 = async () => {
 
     const aposLocation = gl.getAttribLocation(program, 'a_pos')
     const aUvLocation = gl.getAttribLocation(program, 'a_uv')
+    const flipYlocation = gl.getUniformLocation(program, 'flipY')
     const imgTextureLocation = gl.getUniformLocation(program, 'myTexture')
     const kernelLocation = gl.getUniformLocation(program, "u_kernel[0]");
     const kernelWeightLocation = gl.getUniformLocation(program, "u_kernelWeight");
@@ -158,8 +159,8 @@ export const main2 = async () => {
         // resize
         util.resizeCanvasToDisplaySize(gl.canvas as HTMLCanvasElement)
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-        // gl.clearColor(0.1, 0.1, 0.1, 0.1)
-        // gl.clear(gl.COLOR_BUFFER_BIT)
+        gl.clearColor(0.1, 0.1, 0.1, 0.1)
+        gl.clear(gl.COLOR_BUFFER_BIT)
 
         gl.useProgram(program)
         gl.bindVertexArray(vao)
@@ -168,13 +169,16 @@ export const main2 = async () => {
         gl.bindTexture(gl.TEXTURE_2D, originalTexture);
 
         gl.uniform1i(imgTextureLocation, 0)
+        gl.uniform1f(flipYlocation, -1.0)
 
         let count = 0
         for (let i = 0; i < tbody.rows.length; i++) {
             var checkbox = tbody.rows[i].firstChild!.firstChild! as HTMLInputElement;
             if (checkbox.checked) {
                 if (count % 2 == 0) {
+
                     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo1)
+                    gl.viewport(0, 0, image.width, image.height)
                     let name = checkbox.value as string
                     gl.uniform1fv(kernelLocation, kernels[name])
                     gl.uniform1f(kernelWeightLocation, computeKernelWeight(kernels[name]))
@@ -184,7 +188,10 @@ export const main2 = async () => {
                     gl.bindTexture(gl.TEXTURE_2D, texture1)// render textuer2
                 }
                 else {
+
                     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo2)
+                    gl.viewport(0, 0, image.width, image.height)
+
                     let name = checkbox.value as string
                     gl.uniform1fv(kernelLocation, kernels[name])
                     gl.uniform1f(kernelWeightLocation, computeKernelWeight(kernels[name]))
@@ -197,7 +204,9 @@ export const main2 = async () => {
                 // increment count so we use the other texture next time.
                 ++count;
             }
-        }
+        }   
+        gl.uniform1f(flipYlocation, 1.0)
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
         gl.clearColor(0, 0, 0, 0);
@@ -241,7 +250,7 @@ export const main2 = async () => {
     ui.appendChild(table);
     // $("#ui table").tableDnD({ onDrop: drawEffects });
 
-
+    render()
 
 }
 
@@ -359,8 +368,8 @@ var kernels: any = {
 var effects = [
     { name: "normal", on: true },
     { name: "gaussianBlur", },
-    { name: "gaussianBlur2", on: true },
-    { name: "gaussianBlur3", on: true },
+    { name: "gaussianBlur2", },
+    { name: "gaussianBlur3", },
     { name: "unsharpen", },
     { name: "sharpness", },
     { name: "sharpen", },

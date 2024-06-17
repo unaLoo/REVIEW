@@ -5,7 +5,8 @@ import { onMounted } from 'vue'
 import { main, main3d } from '../exps/03transform/main'
 
 onMounted(() => {
-  main3d()
+  // main3d()
+  main()
 })
 
 </script>

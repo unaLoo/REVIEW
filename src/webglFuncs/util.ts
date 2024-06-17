@@ -132,7 +132,7 @@ export class M3 {
         return this.mutiply(rotateMat.value, this.value)
     }
 
-    mutiply(a: any, b: any): M3 {
+    mutiply(b: any, a: any): M3 {
 
         var a00 = a[0 * 3 + 0]
         var a01 = a[0 * 3 + 1]
@@ -154,7 +154,7 @@ export class M3 {
         var b22 = b[2 * 3 + 2]
 
         return new M3([
-            b00 * a00 + b01 * a10 + b02 * a20,
+            b00 * a00 + b01 * a10 + b02 * a20,// b 一行 * a 一列
             b00 * a01 + b01 * a11 + b02 * a21,
             b00 * a02 + b01 * a12 + b02 * a22,
             b10 * a00 + b11 * a10 + b12 * a20,
@@ -173,7 +173,7 @@ export class M4 {
         this.value = data
     }
 
-    mutiply(a: any, b: any): M4 {
+    mutiply(b: any, a: any): M4 {
 
         var b00 = b[0 * 4 + 0];
         var b01 = b[0 * 4 + 1];
@@ -208,8 +208,9 @@ export class M4 {
         var a32 = a[3 * 4 + 2];
         var a33 = a[3 * 4 + 3];
 
+        // 线代上的 B * A 
         return new M4([
-            b00 * a00 + b01 * a10 + b02 * a20 + b03 * a30,
+            b00 * a00 + b01 * a10 + b02 * a20 + b03 * a30,//b一行 * a一列
             b00 * a01 + b01 * a11 + b02 * a21 + b03 * a31,
             b00 * a02 + b01 * a12 + b02 * a22 + b03 * a32,
             b00 * a03 + b01 * a13 + b02 * a23 + b03 * a33,
@@ -235,7 +236,7 @@ export class M4 {
             0, 0, 1, 0,
             x, y, z, 1
         ])
-        return this.mutiply(this.value, transMat.value)
+        return this.mutiply(transMat.value, this.value)
     }
 
     scale(x: number, y: number, z: number): M4 {
@@ -245,7 +246,7 @@ export class M4 {
             0, 0, z, 0,
             0, 0, 0, 1
         ])
-        return this.mutiply(this.value, scaleMat.value)
+        return this.mutiply(scaleMat.value, this.value)
     }
 
     rotateX(angle: number): M4 {
@@ -258,7 +259,7 @@ export class M4 {
             0, s, c, 0,
             0, 0, 0, 1
         ])
-        return this.mutiply(this.value, rotateMat.value)
+        return this.mutiply(rotateMat.value, this.value)
     }
     rotateY(angle: number): M4 {
         let rad = angle * Math.PI / 180
@@ -270,7 +271,7 @@ export class M4 {
             -s, 0, c, 0,
             0, 0, 0, 1
         ])
-        return this.mutiply(this.value, rotateMat.value)
+        return this.mutiply(rotateMat.value, this.value)
     }
     rotateZ(angle: number): M4 {
         let rad = angle * Math.PI / 180
@@ -282,7 +283,7 @@ export class M4 {
             0, 0, 1, 0,
             0, 0, 0, 1
         ])
-        return this.mutiply(this.value, rotateMat.value)
+        return this.mutiply(rotateMat.value, this.value)
     }
 
     // 正交投影

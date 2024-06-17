@@ -2,10 +2,10 @@
 import { onMounted } from 'vue'
 // import { prepare } from '../exps/01triangle/main';
 // import { main, main2 } from '../exps/02texture/main'
-import { main } from '../exps/03transform/main'
+import { main, main3d } from '../exps/03transform/main'
 
 onMounted(() => {
-  main()
+  main3d()
 })
 
 </script>

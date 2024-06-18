@@ -2,22 +2,20 @@
 import { onMounted } from 'vue'
 // import { prepare } from '../exps/01triangle/main';
 // import { main, main2 } from '../exps/02texture/main'
-import { main, main3d } from '../exps/03transform/main'
+// import { main, main3d } from '../exps/03transform/main'
+import { initMap } from '../exps/04polygon/main'
 
 onMounted(() => {
-  // main3d()
-  main()
+  initMap()
 })
 
 </script>
 
 <template>
   <div class="main">
-    <canvas id='playground'>
-
-    </canvas>
+    <!-- <canvas id='playground'></canvas> -->
+    <div id="map"></div>
   </div>
-  <div id="ui"></div>
 </template>
 
 <style scoped lang="scss">
@@ -25,15 +23,27 @@ onMounted(() => {
   position: absolute;
   width: 100vw;
   height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  margin: 0;
+  padding: 0;
+  // display: flex;
+  // justify-content: center;
+  // align-items: center;
   background-color: rgb(63, 63, 63);
 
   #playground {
+    position: relative;
     width: 90%;
     height: 90%;
     background-color: gray;
+    z-index: 1;
+  }
+
+  #map {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 2;
+    background-color: transparent;
   }
 
 }

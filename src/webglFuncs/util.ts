@@ -19,6 +19,7 @@ export function createProgram(gl: WebGL2RenderingContext, vertexShader: WebGLSha
     gl.linkProgram(program);
     var success = gl.getProgramParameter(program, gl.LINK_STATUS);
     if (success) {
+        console.log('program created successfully')
         return program;
     }
     console.warn(gl.getProgramInfoLog(program));
@@ -90,6 +91,13 @@ export function createVBO(gl: WebGL2RenderingContext, data: Array<number>) {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW)
     return buffer
+}
+
+export function createIBO(gl: WebGL2RenderingContext, data: Array<number>) {
+    const indexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(data), gl.STATIC_DRAW);
+    return indexBuffer
 }
 
 

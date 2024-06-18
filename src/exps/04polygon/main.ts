@@ -159,6 +159,13 @@ class FlowTextureLayer {
 
     async onAdd(map: mapbox.Map, gl: WebGL2RenderingContext) {
 
+        const available_extensions = gl.getSupportedExtensions();
+        console.log(available_extensions);
+        available_extensions?.forEach(ext => {
+            gl.getExtension(ext)
+        })
+
+
         this.map = map
 
         let { vertexData_station, indexData_station } = await getStationData('/flowResource/bin/station.bin')
@@ -200,7 +207,7 @@ class FlowTextureLayer {
 
 
         this.indexLength_delaunay = indexData_station.length
-        console.log('!', Array.from(new Float32Array(vertexData_station)))
+        // console.log('!', Array.from(new Float32Array(vertexData_station)))
         this.stationBuffer = util.createVBO(gl, Array.from(new Float32Array(vertexData_station)))
         gl.enableVertexAttribArray(this.Locations['a_position'] as number)
         gl.vertexAttribPointer(
@@ -211,7 +218,7 @@ class FlowTextureLayer {
             0,
             0
         )
-        console.log('velocity!', Array.from(new Float32Array(velocityData)))
+        // console.log('velocity!', Array.from(new Float32Array(velocityData)))
         this.velocityBuffer = util.createVBO(gl, Array.from(new Float32Array(velocityData)))
         gl.enableVertexAttribArray(this.Locations['a_velocity'] as number)
         gl.vertexAttribPointer(
@@ -222,76 +229,77 @@ class FlowTextureLayer {
             0,
             0
         )
-        console.log('!', Array.from(new Uint32Array(indexData_station)))
+        // console.log('!', Array.from(new Uint32Array(indexData_station)))
         this.stationIndexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.stationIndexBuffer);
         gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indexData_station), gl.STATIC_DRAW);
         gl.bindVertexArray(null)
 
         ///// frame buffer
-        // this.uvTexture = util.createEmptyTexture(gl)!
-        // this.fbo_uvTexture = gl.createFramebuffer()!
-        // gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_uvTexture)
-        // gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.uvTexture, 0)
-        // gl.bindVertexArray(null)
+        this.uvTexture = gl.createTexture()
+        gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, gl.canvas.width, gl.canvas.height, 0, gl.RG, gl.FLOAT, null);
+
+        this.fbo_uvTexture = gl.createFramebuffer()!
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_uvTexture)
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.uvTexture, 0)
+
 
 
 
 
         ////////// 2nd::: show uvTexture program
-        // const vsSource_showing = (await axios.get('/shaders/04polygon/showing.vert.glsl')).data
-        // const fsSource_showing = (await axios.get('/shaders/04polygon/showing.frag.glsl')).data
-        // const vs_showing = util.createShader(gl, gl.VERTEX_SHADER, vsSource_showing)!
-        // const fs_showing = util.createShader(gl, gl.FRAGMENT_SHADER, fsSource_showing)!
-        // this.program_showing = util.createProgram(gl, vs_showing, fs_showing)!
+        const vsSource_showing = (await axios.get('/shaders/04polygon/showing.vert.glsl')).data
+        const fsSource_showing = (await axios.get('/shaders/04polygon/showing.frag.glsl')).data
+        const vs_showing = util.createShader(gl, gl.VERTEX_SHADER, vsSource_showing)!
+        const fs_showing = util.createShader(gl, gl.FRAGMENT_SHADER, fsSource_showing)!
+        this.program_showing = util.createProgram(gl, vs_showing, fs_showing)!
 
-        // this.Locations_showing['a_pos'] = gl.getAttribLocation(this.program_showing, 'a_pos')
-        // this.Locations_showing['a_texCoord'] = gl.getAttribLocation(this.program_showing, 'a_texCoord')
-        // this.Locations_showing['uv_texture'] = gl.getUniformLocation(this.program_showing, 'uv_texture')
-        // console.log(this.Locations_showing)
+        this.Locations_showing['a_pos'] = gl.getAttribLocation(this.program_showing, 'a_pos')
+        this.Locations_showing['a_texCoord'] = gl.getAttribLocation(this.program_showing, 'a_texCoord')
+        this.Locations_showing['uv_texture'] = gl.getUniformLocation(this.program_showing, 'uv_texture')
+        console.log(this.Locations_showing)
 
-        // this.vao_showing = gl.createVertexArray()!
-        // gl.bindVertexArray(this.vao_showing)
-        // const positionData_showing = [
-
-        //     -1.0, -1.0,
-        //     1.0, -1.0,
-        //     -1.0, 1.0,
-        //     -1.0, 1.0,
-        //     1.0, 1.0,
-        //     1.0, -1.0
-
-        // ]
-        // this.positionBuffer_showing = util.createVBO(gl, positionData_showing)
-        // gl.enableVertexAttribArray(this.Locations_showing['a_pos'] as number)
-        // gl.vertexAttribPointer(
-        //     this.Locations_showing['a_pos'] as number,
-        //     2,
-        //     gl.FLOAT,
-        //     false,
-        //     0,
-        //     0
-        // )
-        // const texCoordData_showing = [
-        //     0, 1,
-        //     1, 1,
-        //     0, 0,
-        //     0, 0,
-        //     1, 0,
-        //     1, 1
-        // ]
-        // this.texCoordBuffer_showing = util.createVBO(gl, texCoordData_showing)
-        // gl.enableVertexAttribArray(this.Locations_showing['a_texCoord'] as number)
-        // gl.vertexAttribPointer(
-        //     this.Locations_showing['a_texCoord'] as number,
-        //     2,
-        //     gl.FLOAT,
-        //     false,
-        //     0,
-        //     0
-        // )
-        // // this.showingTexture = util.createEmptyTexture(gl)!
-        // gl.bindVertexArray(null)
+        this.vao_showing = gl.createVertexArray()!
+        gl.bindVertexArray(this.vao_showing)
+        const positionData_showing = [
+            -1.0, -1.0,
+            1.0, -1.0,
+            -1.0, 1.0,
+            1.0, 1.0
+        ]
+        this.positionBuffer_showing = util.createVBO(gl, positionData_showing)
+        gl.enableVertexAttribArray(this.Locations_showing['a_pos'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_showing['a_pos'] as number,
+            2,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        const texCoordData_showing = [
+            0, 1,
+            1, 1,
+            0, 0,
+            1, 0,
+        ]
+        this.texCoordBuffer_showing = util.createVBO(gl, texCoordData_showing)
+        gl.enableVertexAttribArray(this.Locations_showing['a_texCoord'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_showing['a_texCoord'] as number,
+            2,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        // this.showingTexture = util.createEmptyTexture(gl)!
+        gl.bindVertexArray(null)
 
 
         // let image = await util.loadImageBitmap('/images/02texture/leaves.jpg') as ImageBitmap
@@ -307,49 +315,41 @@ class FlowTextureLayer {
 
             ////////// 1st::: delaunay program to get uv texture
 
-            // gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_uvTexture)
+            gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_uvTexture)
             // gl.bindFramebuffer(gl.FRAMEBUFFER, null)
             let mapExtent = getMapExtent(this.map!)
-
             gl.useProgram(this.programe_delaunay!)
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
             gl.bindVertexArray(this.vao_delaunay)
             gl.uniformMatrix4fv(this.Locations['u_matrix'] as WebGLUniformLocation, false, matrix)
             gl.uniform4f(this.Locations['u_mapExtent'] as WebGLUniformLocation, mapExtent[0], mapExtent[1], mapExtent[2], mapExtent[3])
 
-            // gl.clearColor(0, 0, 0, 1)
-            // gl.clear(gl.COLOR_BUFFER_BIT)
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.stationIndexBuffer)
-            gl.drawElements(gl.TRIANGLE_STRIP, this.indexLength_delaunay, gl.UNSIGNED_INT, 0)
-            // gl.drawArrays(gl.TRIANGLES, 0, 99)
-
-
-
-            // gl.clearColor(0, 0, 0, 1)
-            // gl.clear(gl.COLOR_BUFFER_BIT)
-            // gl.drawArrays(gl.TRIANGLES, 0, 3);
+            gl.clearColor(0, 0, 0, 0)
+            gl.clear(gl.COLOR_BUFFER_BIT)
+            // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.stationIndexBuffer)
+            gl.drawElements(gl.TRIANGLES, this.indexLength_delaunay, gl.UNSIGNED_INT, 0)
 
             ////////// 2nd::: show uvTexture program
-            // gl.useProgram(this.program_showing!)
-            // gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+            gl.useProgram(this.program_showing!)
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
-            // gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-            // gl.activeTexture(gl.TEXTURE0)
-            // // gl.bindTexture(gl.TEXTURE_2D, this.testTexture)
-            // gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+            gl.activeTexture(gl.TEXTURE0)
+            // gl.bindTexture(gl.TEXTURE_2D, this.testTexture)
+            gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
 
-            // gl.bindVertexArray(this.vao_showing)
-            // gl.uniform1i(this.Locations_showing['uv_texture'] as WebGLUniformLocation, 0)
+            gl.bindVertexArray(this.vao_showing)
+            gl.uniform1i(this.Locations_showing['uv_texture'] as WebGLUniformLocation, 0)
 
-            // gl.enable(gl.BLEND);
-            // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-            // gl.drawArrays(gl.TRIANGLES, 0, 6)
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
         }
         else {
             console.log('polygon layer not readydd')
         }
-        // this.map!.triggerRepaint() 
+        // this.map!.triggerRepaint()
 
 
     }
@@ -420,14 +420,9 @@ async function getStationData(url: string) {
     vertexData = meshes.points // Float32Array
 
     // PROCESS 
-    let vertexData_station = []
-    for (let i = 0; i < vertexData.length; i += 2) {
-        let [x, y] = lnglat2Mercator(vertexData[i], vertexData[i + 1]);
-        vertexData_station.push(x, y);
-    }
 
     return {
-        vertexData_station: vertexData_station,
+        vertexData_station: vertexData,
         indexData_station: indexData
     }
 }

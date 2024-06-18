@@ -8,5 +8,5 @@ out vec2 v_texCoord;
 
 void main() {
     v_texCoord = a_texCoord;
-    gl_Position = a_pos;
+    gl_Position = a_pos * vec4(1, -1, 1, 1);
 }

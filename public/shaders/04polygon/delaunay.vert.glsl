@@ -19,8 +19,8 @@ vec2 lnglat2Mercator(float lng, float lat) {
 
 void main() {
 
-    // float x = (a_position.x - u_mapExtent.x) / (u_mapExtent.z - u_mapExtent.x);
-    // float y = (a_position.y - u_mapExtent.y) / (u_mapExtent.w - u_mapExtent.y);
+    float x = (a_position.x - u_mapExtent.x) / (u_mapExtent.z - u_mapExtent.x);
+    float y = (a_position.y - u_mapExtent.y) / (u_mapExtent.w - u_mapExtent.y);
 
     vec2 mercator = lnglat2Mercator(a_position.x, a_position.y);
 
@@ -39,7 +39,7 @@ void main() {
     // vec2 position = vec2(vert[id * 2], vert[id * 2 + 1]);
 
     // gl_Position = u_matrix * vec4(x, y, 0.0f, 1.0f);
-    gl_Position = u_matrix * vec4(a_position, 0.0f, 1.0f);
-    // gl_Position = u_matrix * vec4(mercator, 0.0f, 1.0f);
+    // gl_Position = u_matrix * vec4(a_position, 0.0f, 1.0f);
+    gl_Position = u_matrix * vec4(mercator, 0.0f, 1.0f);
 
 }

@@ -5,9 +5,44 @@ in vec2 v_texCoord;
 uniform sampler2D uv_texture;
 out vec4 fragColor;
 
+const vec3 color[10] = vec3[10](vec3(0.0f, 0.0f, 1.0f),   // 蓝色
+vec3(0.0f, 0.5f, 1.0f),   // 浅蓝色
+vec3(0.0f, 1.0f, 1.0f),   // 青色
+vec3(0.0f, 1.0f, 0.5f),   // 浅青色
+vec3(0.0f, 1.0f, 0.0f),   // 绿色
+vec3(0.5f, 1.0f, 0.0f),   // 浅绿色
+vec3(1.0f, 1.0f, 0.0f),   // 黄色
+vec3(1.0f, 0.5f, 0.0f),   // 浅黄色
+vec3(1.0f, 0.0f, 0.0f),   // 红色
+vec3(0.5f, 0.0f, 0.0f)    // 深红色
+);
+const float maxV = 2.5f;
+const float minV = 0.0f;
+
+vec3 getColor(vec2 velocity) {
+
+    float magnitude = length(velocity);
+    float normalized = (magnitude - minV) / (maxV - minV);// normal
+    int indexFloor = int(floor(normalized * 10.0f));
+    int indexCeil = int(ceil(normalized * 10.0f));
+    float factor = normalized * 10.0f - float(indexFloor);
+    float roundedValue = round(factor * 10.0f) / 10.0f; 
+    // return mix(color[indexFloor], color[indexCeil], factor);
+    return mix(color[indexFloor], color[indexCeil], roundedValue);
+
+}
+
 void main() {
     float alpha = 0.8f;
     vec2 velocityUV = texture(uv_texture, v_texCoord).rg;
-    fragColor = vec4(velocityUV, 0.0, alpha);
-    // fragColor = vec4(0.0)*alpha;
+    if(velocityUV == vec2(0.0f)) {
+        fragColor = vec4(0.0f);
+        return;
+    }
+
+    vec3 velocityColor = getColor(velocityUV);
+    fragColor = vec4(velocityColor, 1.0f) * alpha;
+    // fragColor = vec4(velocityColor, alpha);
+    // fragColor = vec4(0.5f);
+
 }

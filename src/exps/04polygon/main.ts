@@ -137,6 +137,7 @@ class FlowTextureLayer {
     stationBuffer: WebGLBuffer | null = null
     stationIndexBuffer: WebGLBuffer | null = null
     velocityBuffer: WebGLBuffer | null = null
+    velocity2Buffer: WebGLBuffer | null = null
 
     uvTexture: WebGLTexture | null = null
     fbo_uvTexture: WebGLFramebuffer | null = null
@@ -150,6 +151,10 @@ class FlowTextureLayer {
 
 
     testTexture: WebGLTexture | null = null
+
+
+    totalTime = 120 //frame
+    nowFrame = 0
 
     constructor(id: string, url: string) {
         this.id = id
@@ -169,7 +174,8 @@ class FlowTextureLayer {
         this.map = map
 
         let { vertexData_station, indexData_station } = await getStationData('/flowResource/bin/station.bin')
-        let velocityData = await getVelocityData('/flowResource/bin/uv_1.bin')
+        let velocityData = await getVelocityData('/flowResource/bin/uv_0.bin')
+        let velocityData2 = await getVelocityData('/flowResource/bin/uv_2.bin')
 
         ////////// 1st::: delaunay program to get uv texture
 
@@ -180,8 +186,10 @@ class FlowTextureLayer {
         this.programe_delaunay = util.createProgram(gl, vs_delaunay, fs_delaunay)!
 
         this.Locations['a_postion'] = gl.getAttribLocation(this.programe_delaunay!, 'a_position')
-        this.Locations['a_velocity'] = gl.getAttribLocation(this.programe_delaunay!, 'a_velocity')
+        this.Locations['a_velocity_from'] = gl.getAttribLocation(this.programe_delaunay!, 'a_velocity_from')
+        this.Locations['a_velocity_to'] = gl.getAttribLocation(this.programe_delaunay, 'a_velocity_to')
 
+        this.Locations['progressRatio'] = gl.getUniformLocation(this.programe_delaunay!, 'progressRatio')
         this.Locations['u_mapExtent'] = gl.getUniformLocation(this.programe_delaunay!, 'u_mapExtent')
         this.Locations['u_matrix'] = gl.getUniformLocation(this.programe_delaunay!, 'u_matrix')
 
@@ -220,15 +228,27 @@ class FlowTextureLayer {
         )
         // console.log('velocity!', Array.from(new Float32Array(velocityData)))
         this.velocityBuffer = util.createVBO(gl, Array.from(new Float32Array(velocityData)))
-        gl.enableVertexAttribArray(this.Locations['a_velocity'] as number)
+        gl.enableVertexAttribArray(this.Locations['a_velocity_from'] as number)
         gl.vertexAttribPointer(
-            this.Locations['a_velocity'] as number,
+            this.Locations['a_velocity_from'] as number,
             2,
             gl.FLOAT,
             false,
             0,
             0
         )
+
+        this.velocity2Buffer = util.createVBO(gl, Array.from(new Float32Array(velocityData2)))
+        gl.enableVertexAttribArray(this.Locations['a_velocity_to'] as number)
+        gl.vertexAttribPointer(
+            this.Locations['a_velocity_to'] as number,
+            2,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+
         // console.log('!', Array.from(new Uint32Array(indexData_station)))
         this.stationIndexBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.stationIndexBuffer);
@@ -312,6 +332,9 @@ class FlowTextureLayer {
 
     render(gl: WebGL2RenderingContext, matrix: Array<number>) {
         if (this.ready) {
+            ////////// update frame
+            this.nowFrame = (this.nowFrame + 1) % this.totalTime
+            let progressRatio = this.nowFrame / this.totalTime
 
             ////////// 1st::: delaunay program to get uv texture
 
@@ -323,7 +346,7 @@ class FlowTextureLayer {
             gl.bindVertexArray(this.vao_delaunay)
             gl.uniformMatrix4fv(this.Locations['u_matrix'] as WebGLUniformLocation, false, matrix)
             gl.uniform4f(this.Locations['u_mapExtent'] as WebGLUniformLocation, mapExtent[0], mapExtent[1], mapExtent[2], mapExtent[3])
-
+            gl.uniform1f(this.Locations['progressRatio'] as WebGLUniformLocation, progressRatio)
             gl.clearColor(0, 0, 0, 0)
             gl.clear(gl.COLOR_BUFFER_BIT)
             // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.stationIndexBuffer)
@@ -349,7 +372,7 @@ class FlowTextureLayer {
         else {
             console.log('polygon layer not readydd')
         }
-        // this.map!.triggerRepaint()
+        this.map!.triggerRepaint()
 
 
     }
@@ -382,10 +405,6 @@ export const initMap = () => {
 
 
     })
-
-
-
-
 }
 
 

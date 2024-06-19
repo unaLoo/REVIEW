@@ -26,6 +26,19 @@ export function createProgram(gl: WebGL2RenderingContext, vertexShader: WebGLSha
     gl.deleteProgram(program);
 }
 
+export function createProgram2(gl: WebGL2RenderingContext, vs: WebGLShader, fs: WebGLShader, outVaryings: Iterable<string>) {
+    const prg = gl.createProgram()!
+    gl.attachShader(prg, vs)
+    gl.attachShader(prg, fs)
+    if (outVaryings) {
+        gl.transformFeedbackVaryings(prg, outVaryings, gl.SEPARATE_ATTRIBS)
+    }
+    gl.linkProgram(prg)
+    if (!gl.getProgramParameter(prg, gl.LINK_STATUS)) {
+        throw new Error(gl.getProgramInfoLog(prg)!)
+    }
+}
+
 export function resizeCanvasToDisplaySize(canvas: HTMLCanvasElement) {
     // 获取浏览器显示的画布的CSS像素值
     const displayWidth = canvas.clientWidth

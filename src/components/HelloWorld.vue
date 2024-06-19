@@ -3,18 +3,21 @@ import { onMounted } from 'vue'
 // import { prepare } from '../exps/01triangle/main';
 // import { main, main2 } from '../exps/02texture/main'
 // import { main, main3d } from '../exps/03transform/main'
-import { initMap } from '../exps/04polygon/main'
+// import { initMap } from '../exps/04polygon/main'
+import { main } from '../exps/05XFBO/main'
+// import { initMap } from '../exps/06flow/main'
 
 onMounted(() => {
-  initMap()
+  // initMap()
+  main()
 })
 
 </script>
 
 <template>
   <div class="main">
-    <!-- <canvas id='playground'></canvas> -->
-    <div id="map"></div>
+    <canvas id='playground'></canvas>
+    <!-- <div id="map"></div> -->
   </div>
 </template>
 
@@ -25,9 +28,9 @@ onMounted(() => {
   height: 100vh;
   margin: 0;
   padding: 0;
-  // display: flex;
-  // justify-content: center;
-  // align-items: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   background-color: rgb(63, 63, 63);
 
   #playground {

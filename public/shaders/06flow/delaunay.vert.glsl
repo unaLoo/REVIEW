@@ -5,7 +5,7 @@ in vec2 a_velocity_from;//velocity from bin ==> vec2(u,v)
 in vec2 a_velocity_to;//velocity to bin ==> vec2(u,v)
 
 uniform float progressRatio;
-uniform vec4 u_mapExtent;// minx, miny, maxx, maxy
+uniform vec4 u_flowExtent;// minx, miny, maxx, maxy
 uniform mat4 u_matrix;
 
 out vec2 v_velocity;
@@ -21,8 +21,8 @@ vec2 lnglat2Mercator(float lng, float lat) {
 
 void main() {
 
-    float x = (a_position.x - u_mapExtent.x) / (u_mapExtent.z - u_mapExtent.x);
-    float y = (a_position.y - u_mapExtent.y) / (u_mapExtent.w - u_mapExtent.y);
+    float x = (a_position.x - u_flowExtent.x) / (u_flowExtent.z - u_flowExtent.x);
+    float y = (a_position.y - u_flowExtent.y) / (u_flowExtent.w - u_flowExtent.y);
 
     vec2 mercator = lnglat2Mercator(a_position.x, a_position.y);
 

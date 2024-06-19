@@ -2,7 +2,7 @@
 precision highp float;
 
 in vec2 v_texCoord;
-uniform sampler2D uv_texture;
+uniform sampler2D showingTexture;
 out vec4 fragColor;
 
 const vec3 color[10] = vec3[10](vec3(0.0f, 0.0f, 1.0f),   // 蓝色
@@ -34,7 +34,7 @@ vec3 getColor(vec2 velocity) {
 
 void main() {
     float alpha = 0.8f;
-    vec2 velocityUV = texture(uv_texture, v_texCoord).rg;
+    vec2 velocityUV = texture(showingTexture, v_texCoord).rg;
     if(velocityUV == vec2(0.0f)) {
         fragColor = vec4(0.0f);
         return;

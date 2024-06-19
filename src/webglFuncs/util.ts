@@ -34,9 +34,13 @@ export function createProgram2(gl: WebGL2RenderingContext, vs: WebGLShader, fs: 
         gl.transformFeedbackVaryings(prg, outVaryings, gl.SEPARATE_ATTRIBS)
     }
     gl.linkProgram(prg)
-    if (!gl.getProgramParameter(prg, gl.LINK_STATUS)) {
-        throw new Error(gl.getProgramInfoLog(prg)!)
+    var success = gl.getProgramParameter(prg, gl.LINK_STATUS);
+    if (success) {
+        console.log('program created successfully')
+        return prg;
     }
+    console.warn(gl.getProgramInfoLog(prg));
+    gl.deleteProgram(prg);
 }
 
 export function resizeCanvasToDisplaySize(canvas: HTMLCanvasElement) {

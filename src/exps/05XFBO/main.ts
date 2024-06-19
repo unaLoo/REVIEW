@@ -79,12 +79,12 @@ const simpleTransformFeedback = async () => {
         gl.endTransformFeedback()
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
 
-        // gl.disable(gl.RASTERIZER_DISCARD)
-        // gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-        // gl.useProgram(showProgram)
-        // gl.bindVertexArray(vao4show)
-        // gl.drawArrays(gl.POINTS, 0, 2)
-        // gl.bindVertexArray(null)
+        gl.disable(gl.RASTERIZER_DISCARD)
+        gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+        gl.useProgram(showProgram)
+        gl.bindVertexArray(vao4show)
+        gl.drawArrays(gl.LINES, 0, 2)
+        gl.bindVertexArray(null)
     }
 
     render()

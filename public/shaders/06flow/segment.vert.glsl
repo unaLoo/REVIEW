@@ -30,6 +30,6 @@ void main() {
     
     vec2 pos = vec2(gl_VertexID % 2 == 0 ? positionInfo_from.xy : positionInfo_to.xy);
     velocity = positionInfo_to.z;
-    gl_Position = u_matrix * vec4(vec2(pos.x, pos.y), 0.0f, 1.0f);
-    gl_PointSize = 20.0f;
+    gl_Position = u_matrix * vec4(lnglat2Mercator(pos.x, pos.y), 0.0f, 1.0f);
+    gl_PointSize = 5.0f;
 }

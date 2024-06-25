@@ -40,8 +40,7 @@ class FlowLayer {
     pposBuffer_simulate_2: WebGLBuffer | null = null
     vao_simulate_1: WebGLVertexArrayObject | null = null
     vao_simulate_2: WebGLVertexArrayObject | null = null
-    positionBuffer_simulate_1: WebGLBuffer | null = null
-    positionBuffer_simulate_2: WebGLBuffer | null = null
+    velocityBuffer: WebGLBuffer | null = null
     xfo_simulate_1: WebGLTransformFeedback | null = null
     xfo_simulate_2: WebGLTransformFeedback | null = null
 
@@ -56,7 +55,7 @@ class FlowLayer {
     /// static data
     flowExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
     flowMaxVelocity: number = 0
-    particelNum: number = 65536
+    particelNum: number = 500
     dropRate: number = 0.003
     dropRateBump: number = 0.001
     velocityFactor: number = 1.0
@@ -111,19 +110,9 @@ class FlowLayer {
             this.mapExtent = getMapExtent(this.map!)
             this.randomSeed = Math.random()
 
-            console.log('//////////');
-            console.log(this.flowExtent)
-            console.log(this.mapExtent)
-
-            function currentExtent(flowExtent:Array<number>, mapExtent:Array<number>):Array<number> {
-                const lonMin = Math.max(flowExtent[0], mapExtent[0]);
-                const latMin = Math.max(flowExtent[1], mapExtent[1]);
-                const lonMax = Math.min(flowExtent[2], mapExtent[2]);
-                const latMax = Math.min(flowExtent[3], mapExtent[3]);
-                return [lonMin, latMin, lonMax, latMax];
-            }
-            console.log(currentExtent(this.flowExtent, this.mapExtent))
-
+            // console.log('//////////');
+            // console.log(this.flowExtent)
+            // console.log(this.mapExtent)
             // console.log(this.flowMaxVelocity)
             // console.log(this.particelNum)
             // console.log(this.dropRate)
@@ -176,6 +165,7 @@ class FlowLayer {
             gl.uniformMatrix4fv(this.Locations_simulate['u_matrix'], false, matrix)
             gl.uniform1f(this.Locations_simulate['maxSpeed'], this.flowMaxVelocity)
             gl.uniform1f(this.Locations_simulate['randomSeed'], Math.random())
+            console.log(this.particelNum)
             gl.uniform1i(this.Locations_simulate['particelNum'], this.particelNum)
             gl.uniform1f(this.Locations_simulate['dropRate'], this.dropRate)
             gl.uniform1f(this.Locations_simulate['dropRateBump'], this.dropRateBump)
@@ -207,7 +197,7 @@ class FlowLayer {
         else {
             console.log('polygon layer not readydd')
         }
-        // this.map!.triggerRepaint()
+        this.map!.triggerRepaint()
 
         window.addEventListener('keydown', (e) => {
             if (e.key == 'd') {
@@ -379,21 +369,20 @@ class FlowLayer {
     }
 
     async programInit_simulate(gl: WebGL2RenderingContext) {
-        let particleInfoData1 = new Array(this.particelNum * 3).fill(0)
-        let particleInfoData2 = new Array(this.particelNum * 3).fill(0)
+        let particleInfoData1 = new Array(this.particelNum * 4).fill(0)
+        let particleInfoData2 = new Array(this.particelNum * 4).fill(0)
+        let velocityColorData = new Array(this.particelNum).fill(0)
         for (let i = 0; i < this.particelNum; i += 1) {
-            particleInfoData1[i * 3 + 0] += Math.random()
-            particleInfoData1[i * 3 + 1] += Math.random()
-            particleInfoData1[i * 3 + 2] = 0.0
-            particleInfoData2[i * 3 + 0] += Math.random()
-            particleInfoData2[i * 3 + 1] += Math.random()
-            particleInfoData2[i * 3 + 2] = 0.0
+            particleInfoData2[i * 3 + 0] = particleInfoData1[i * 3 + 0] += Math.random()
+            particleInfoData2[i * 3 + 1] = particleInfoData1[i * 3 + 1] += Math.random()
+            particleInfoData2[i * 3 + 2] = particleInfoData1[i * 3 + 2] += Math.random()
+            particleInfoData2[i * 3 + 3] = particleInfoData1[i * 3 + 3] += Math.random()
         }
         const VSS = (await axios.get('/shaders/06flow/simulate.vert.glsl'))
         const FSS = (await axios.get('/shaders/06flow/simulate.frag.glsl'))
         const VS = util.createShader(gl, gl.VERTEX_SHADER, VSS.data)!
         const FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS.data)!
-        const outVaryings = ['out_particleInfo']
+        const outVaryings = ['out_particleInfo', 'out_verlocity']
         this.program_simulate = util.createProgram2(gl, VS, FS, outVaryings)!
 
         this.Locations_simulate['a_particleInfo'] = gl.getAttribLocation(this.program_simulate, 'a_particleInfo')
@@ -406,6 +395,9 @@ class FlowLayer {
         this.Locations_simulate['dropRateBump'] = gl.getUniformLocation(this.program_simulate, 'dropRateBump')
         this.Locations_simulate['speedFactor'] = gl.getUniformLocation(this.program_simulate, 'speedFactor')
         this.Locations_simulate['uvTexture'] = gl.getUniformLocation(this.program_simulate, 'uvTexture')
+
+        this.velocityBuffer = util.createVBO(gl, velocityColorData)
+        gl.bindBuffer(gl.ARRAY_BUFFER, null)
 
         this.vao_simulate_1 = gl.createVertexArray()!
         gl.bindVertexArray(this.vao_simulate_1)
@@ -440,11 +432,13 @@ class FlowLayer {
         this.xfo_simulate_1 = gl.createTransformFeedback()!
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.xfo_simulate_1)
         gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_2)
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer)
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
 
         this.xfo_simulate_2 = gl.createTransformFeedback()!
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.xfo_simulate_2)
         gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_1)
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer)
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
     }
 

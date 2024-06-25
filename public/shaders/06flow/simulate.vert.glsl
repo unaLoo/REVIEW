@@ -19,7 +19,7 @@ uniform float speedFactor;
 
 uniform sampler2D uvTexture;
 
-out vec3 out_particleInfo;//(x,y,velocity)
+out vec4 out_particleInfo;//(x,y,velocity)
 out float out_verlocity;
 
 const float PI = 3.14159265359f;
@@ -101,7 +101,8 @@ void main() {
         vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
         float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
         float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
-        out_particleInfo = vec3(x, y, 0.0f);// lng lat
+        out_particleInfo = vec4(x, y, x, y);// lng lat
+        out_verlocity = 0.0f;
         return;
     }
 
@@ -115,14 +116,16 @@ void main() {
     newPos = clamp(newPos, cExtent.xy, cExtent.zw);
 
     if(drop(uvSpeed, seed) == 1.0f || uv.x * uv.y == 0.0f || !validExtentCheck(newPos, cExtent)) {
-        // vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
-        // float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
-        // float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
+        vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
+        float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
+        float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
         // out_particleInfo = vec3(x, y, 0.0f);
-        out_particleInfo = vec3(nowPos.x, nowPos.y, 0.0f);
+        // out_particleInfo = vec3(nowPos.x, nowPos.y, 0.0f);
+        out_particleInfo = vec4(x, y, x, y);// lng lat
         out_verlocity = 0.0f;
     } else {
-        out_particleInfo = vec3(newPos.x, newPos.y, length(uvSpeed) * speedFactor);
+        // out_particleInfo = vec3(newPos.x, newPos.y, length(uvSpeed) * speedFactor);
+        out_particleInfo = vec4(nowPos.x, nowPos.y, newPos.x , newPos.y);
         out_verlocity = length(uvSpeed);
     }
 

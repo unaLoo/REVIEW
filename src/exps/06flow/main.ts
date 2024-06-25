@@ -34,10 +34,26 @@ class FlowLayer {
 
     testTexture: WebGLTexture | null = null
 
+    Locations_simulate: { [name: string]: number | WebGLUniformLocation | null } = {}
+    program_simulate: WebGLProgram | null = null
+    pposBuffer_simulate_1: WebGLBuffer | null = null
+    pposBuffer_simulate_2: WebGLBuffer | null = null
+    vao_simulate_1: WebGLVertexArrayObject | null = null
+    vao_simulate_2: WebGLVertexArrayObject | null = null
+    positionBuffer_simulate_1: WebGLBuffer | null = null
+    positionBuffer_simulate_2: WebGLBuffer | null = null
+    xfo_simulate_1: WebGLTransformFeedback | null = null
+    xfo_simulate_2: WebGLTransformFeedback | null = null
+
+
+    program_segmentShowing: WebGLProgram | null = null
+    Locations_segmentShowing: { [name: string]: number | WebGLUniformLocation | null } = {}
+    vao_segmentShowing: WebGLVertexArrayObject | null = null
+
+
 
 
     /// static data
-    locations_simulate: { [name: string]: number | WebGLUniformLocation | null } = {}
     flowExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
     flowMaxVelocity: number = 0
     particelNum: number = 65536
@@ -60,7 +76,6 @@ class FlowLayer {
     async onAdd(map: mapbox.Map, gl: WebGL2RenderingContext) {
 
         const available_extensions = gl.getSupportedExtensions();
-        console.log(available_extensions);
         available_extensions?.forEach(ext => {
             gl.getExtension(ext)
         })
@@ -76,7 +91,11 @@ class FlowLayer {
         await this.programInit_showing(gl)
         console.log('showing program inited')
 
+        await this.programInit_simulate(gl)
+        console.log('simulate program inited')
 
+        await this.programInit_segmentShowing(gl)
+        console.log('segmentShowing program inited')
 
 
         this.ready = true
@@ -95,11 +114,21 @@ class FlowLayer {
             console.log('//////////');
             console.log(this.flowExtent)
             console.log(this.mapExtent)
-            console.log(this.flowMaxVelocity)
-            console.log(this.particelNum)
-            console.log(this.dropRate)
-            console.log(this.dropRateBump)
-            console.log(this.randomSeed)
+
+            function currentExtent(flowExtent:Array<number>, mapExtent:Array<number>):Array<number> {
+                const lonMin = Math.max(flowExtent[0], mapExtent[0]);
+                const latMin = Math.max(flowExtent[1], mapExtent[1]);
+                const lonMax = Math.min(flowExtent[2], mapExtent[2]);
+                const latMax = Math.min(flowExtent[3], mapExtent[3]);
+                return [lonMin, latMin, lonMax, latMax];
+            }
+            console.log(currentExtent(this.flowExtent, this.mapExtent))
+
+            // console.log(this.flowMaxVelocity)
+            // console.log(this.particelNum)
+            // console.log(this.dropRate)
+            // console.log(this.dropRateBump)
+            // console.log(this.randomSeed)
 
             ////////// 1st::: delaunay program to get uv texture
 
@@ -116,21 +145,63 @@ class FlowLayer {
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.stationIndexBuffer)
             gl.drawElements(gl.TRIANGLES, this.indexLength_delaunay, gl.UNSIGNED_INT, 0)
 
-            ////////// 2nd::: show uvTexture program
-            gl.useProgram(this.program_showing!)
-            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-
             gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+
+            ////////// 2nd::: show uvTexture program
+            // gl.useProgram(this.program_showing!)
+            // gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+
+            // gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+            // gl.activeTexture(gl.TEXTURE0)
+            // // gl.bindTexture(gl.TEXTURE_2D, this.testTexture)
+            // gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
+            // gl.bindVertexArray(this.vao_showing)
+
+            // gl.uniform1i(this.Locations_showing['uv_texture'] as WebGLUniformLocation, 0)
+
+            // gl.enable(gl.BLEND);
+            // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+            ////////// 3rd::: simulate program to get new position
+            gl.enable(gl.RASTERIZER_DISCARD)
+            gl.useProgram(this.program_simulate!)
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+            gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.xfo_simulate_1)
+            gl.bindVertexArray(this.vao_simulate_1)
+
+            gl.uniform4f(this.Locations_simulate['mapExtent'], this.mapExtent[0], this.mapExtent[1], this.mapExtent[2], this.mapExtent[3])
+            gl.uniform4f(this.Locations_simulate['flowExtent'], this.flowExtent[0], this.flowExtent[1], this.flowExtent[2], this.flowExtent[3])
+            gl.uniformMatrix4fv(this.Locations_simulate['u_matrix'], false, matrix)
+            gl.uniform1f(this.Locations_simulate['maxSpeed'], this.flowMaxVelocity)
+            gl.uniform1f(this.Locations_simulate['randomSeed'], Math.random())
+            gl.uniform1i(this.Locations_simulate['particelNum'], this.particelNum)
+            gl.uniform1f(this.Locations_simulate['dropRate'], this.dropRate)
+            gl.uniform1f(this.Locations_simulate['dropRateBump'], this.dropRateBump)
+            gl.uniform1f(this.Locations_simulate['speedFactor'], this.velocityFactor)
             gl.activeTexture(gl.TEXTURE0)
-            // gl.bindTexture(gl.TEXTURE_2D, this.testTexture)
-            gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
-            gl.bindVertexArray(this.vao_showing)
+            gl.bindTexture(gl.TEXTURE_2D, this.uvTexture!)
 
-            gl.uniform1i(this.Locations_showing['uv_texture'] as WebGLUniformLocation, 0)
 
-            gl.enable(gl.BLEND);
-            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+            gl.beginTransformFeedback(gl.POINTS)
+            gl.drawArrays(gl.POINTS, 0, this.particelNum)
+            gl.endTransformFeedback()
+            gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
+            gl.disable(gl.RASTERIZER_DISCARD)
+
+
+            // ////////// 4rd::: the segment showing program
+            gl.useProgram(this.program_segmentShowing!)
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+            gl.uniformMatrix4fv(this.Locations_segmentShowing['u_matrix'], false, matrix)
+            gl.uniform1f(this.Locations_segmentShowing['maxSpeed'], this.flowMaxVelocity)
+            gl.bindVertexArray(this.vao_segmentShowing)
+            gl.drawArraysInstanced(gl.POINTS, 0, 1, this.particelNum)
+            // gl.drawArrays(gl.POINTS, 0, this.particelNum)
+            // gl.drawArraysInstanced(gl.POINTS, 0, 2, 2)
+
+            this.xfSwap()
 
         }
         else {
@@ -138,6 +209,15 @@ class FlowLayer {
         }
         // this.map!.triggerRepaint()
 
+        window.addEventListener('keydown', (e) => {
+            if (e.key == 'd') {
+                this.printBuffer(gl, this.pposBuffer_simulate_1!, this.particelNum * 3);
+            }
+            else if (e.key == 'f') {
+                this.printBuffer(gl, this.pposBuffer_simulate_2!, this.particelNum * 3);
+
+            }
+        })
 
     }
 
@@ -145,11 +225,13 @@ class FlowLayer {
         let { vertexData_station, indexData_station } = await this.getStationData('/flowResource/bin/station.bin')
         let velocityData = await this.getVelocityData('/flowResource/bin/uv_0.bin')
         let velocityData2 = await this.getVelocityData('/flowResource/bin/uv_2.bin')
-
+        // console.log('vertexData', vertexData_station)
+        // console.log('velocityData', velocityData)
         ////////// 1st::: delaunay program to get uv texture
 
-        const vsSource_delaunay = (await axios.get('/shaders/05flow/delaunay.vert.glsl')).data
-        const fsSource_delaunay = (await axios.get('/shaders/05flow/delaunay.frag.glsl')).data
+        const vsSource_delaunay = (await axios.get('/shaders/06flow/delaunay.vert.glsl')).data
+        const fsSource_delaunay = (await axios.get('/shaders/06flow/delaunay.frag.glsl')).data
+        // console.log(vsSource_delaunay, fsSource_delaunay)
         const vs_delaunay = util.createShader(gl, gl.VERTEX_SHADER, vsSource_delaunay)!
         const fs_delaunay = util.createShader(gl, gl.FRAGMENT_SHADER, fsSource_delaunay)!
         this.programe_delaunay = util.createProgram(gl, vs_delaunay, fs_delaunay)!
@@ -162,7 +244,7 @@ class FlowLayer {
         this.Locations_delaunay['u_flowExtent'] = gl.getUniformLocation(this.programe_delaunay!, 'u_flowExtent')
         this.Locations_delaunay['u_matrix'] = gl.getUniformLocation(this.programe_delaunay!, 'u_matrix')
 
-        console.log(this.Locations_delaunay)
+        // console.log(this.Locations_delaunay)
 
         ///// vertex data
         this.vao_delaunay = gl.createVertexArray()!
@@ -238,20 +320,13 @@ class FlowLayer {
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.uvTexture, 0)
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-
-        let particlePos = []
-        let particleNum = 65536
-        for (let i = 0; i < particleNum; i++) {
-            particlePos.push(Math.random(), Math.random())
-        }
-
     }
 
     async programInit_showing(gl: WebGL2RenderingContext) {
 
         ////////// 2nd::: show uvTexture program
-        const vsSource_showing = (await axios.get('/shaders/05flow/showing.vert.glsl')).data
-        const fsSource_showing = (await axios.get('/shaders/05flow/showing.frag.glsl')).data
+        const vsSource_showing = (await axios.get('/shaders/06flow/showing.vert.glsl')).data
+        const fsSource_showing = (await axios.get('/shaders/06flow/showing.frag.glsl')).data
         const vs_showing = util.createShader(gl, gl.VERTEX_SHADER, vsSource_showing)!
         const fs_showing = util.createShader(gl, gl.FRAGMENT_SHADER, fsSource_showing)!
         this.program_showing = util.createProgram(gl, vs_showing, fs_showing)!
@@ -259,7 +334,7 @@ class FlowLayer {
         this.Locations_showing['a_pos'] = gl.getAttribLocation(this.program_showing, 'a_pos')
         this.Locations_showing['a_texCoord'] = gl.getAttribLocation(this.program_showing, 'a_texCoord')
         this.Locations_showing['uv_texture'] = gl.getUniformLocation(this.program_showing, 'uv_texture')
-        console.log(this.Locations_showing)
+        // console.log(this.Locations_showing)
 
         this.vao_showing = gl.createVertexArray()!
         gl.bindVertexArray(this.vao_showing)
@@ -304,9 +379,117 @@ class FlowLayer {
     }
 
     async programInit_simulate(gl: WebGL2RenderingContext) {
-        
+        let particleInfoData1 = new Array(this.particelNum * 3).fill(0)
+        let particleInfoData2 = new Array(this.particelNum * 3).fill(0)
+        for (let i = 0; i < this.particelNum; i += 1) {
+            particleInfoData1[i * 3 + 0] += Math.random()
+            particleInfoData1[i * 3 + 1] += Math.random()
+            particleInfoData1[i * 3 + 2] = 0.0
+            particleInfoData2[i * 3 + 0] += Math.random()
+            particleInfoData2[i * 3 + 1] += Math.random()
+            particleInfoData2[i * 3 + 2] = 0.0
+        }
+        const VSS = (await axios.get('/shaders/06flow/simulate.vert.glsl'))
+        const FSS = (await axios.get('/shaders/06flow/simulate.frag.glsl'))
+        const VS = util.createShader(gl, gl.VERTEX_SHADER, VSS.data)!
+        const FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS.data)!
+        const outVaryings = ['out_particleInfo']
+        this.program_simulate = util.createProgram2(gl, VS, FS, outVaryings)!
+
+        this.Locations_simulate['a_particleInfo'] = gl.getAttribLocation(this.program_simulate, 'a_particleInfo')
+        this.Locations_simulate['mapExtent'] = gl.getUniformLocation(this.program_simulate, 'mapExtent')
+        this.Locations_simulate['flowExtent'] = gl.getUniformLocation(this.program_simulate, 'flowExtent')
+        this.Locations_simulate['u_matrix'] = gl.getUniformLocation(this.program_simulate, 'u_matrix')
+        this.Locations_simulate['maxSpeed'] = gl.getUniformLocation(this.program_simulate, 'maxSpeed')
+        this.Locations_simulate['randomSeed'] = gl.getUniformLocation(this.program_simulate, 'randomSeed')
+        this.Locations_simulate['dropRate'] = gl.getUniformLocation(this.program_simulate, 'dropRate')
+        this.Locations_simulate['dropRateBump'] = gl.getUniformLocation(this.program_simulate, 'dropRateBump')
+        this.Locations_simulate['speedFactor'] = gl.getUniformLocation(this.program_simulate, 'speedFactor')
+        this.Locations_simulate['uvTexture'] = gl.getUniformLocation(this.program_simulate, 'uvTexture')
+
+        this.vao_simulate_1 = gl.createVertexArray()!
+        gl.bindVertexArray(this.vao_simulate_1)
+        console.log('!', particleInfoData1)
+        this.pposBuffer_simulate_1 = util.createVBO(gl, particleInfoData1)
+        gl.enableVertexAttribArray(this.Locations_simulate['a_particleInfo'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_simulate['a_particleInfo'] as number,
+            3,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.bindVertexArray(null)
+
+        this.vao_simulate_2 = gl.createVertexArray()!
+        gl.bindVertexArray(this.vao_simulate_2)
+        this.pposBuffer_simulate_2 = util.createVBO(gl, particleInfoData2)
+        gl.enableVertexAttribArray(this.Locations_simulate['a_particleInfo'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_simulate['a_particleInfo'] as number,
+            3,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.bindVertexArray(null)
+        gl.bindBuffer(gl.ARRAY_BUFFER, null)
+
+        this.xfo_simulate_1 = gl.createTransformFeedback()!
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.xfo_simulate_1)
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_2)
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
+
+        this.xfo_simulate_2 = gl.createTransformFeedback()!
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.xfo_simulate_2)
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_1)
+        gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
     }
 
+    async programInit_segmentShowing(gl: WebGL2RenderingContext) {
+        const VSS = (await axios.get('/shaders/06flow/segment.vert.glsl')).data
+        const FSS = (await axios.get('/shaders/06flow/segment.frag.glsl')).data
+        const VS = util.createShader(gl, gl.VERTEX_SHADER, VSS)!
+        const FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS)!
+        this.program_segmentShowing = util.createProgram(gl, VS, FS)!
+
+        this.Locations_segmentShowing['positionInfo_from'] = gl.getAttribLocation(this.program_segmentShowing, 'positionInfo_from')
+        this.Locations_segmentShowing['positionInfo_to'] = gl.getAttribLocation(this.program_segmentShowing, 'positionInfo_to')
+        this.Locations_segmentShowing['u_matrix'] = gl.getUniformLocation(this.program_segmentShowing, 'u_matrix')
+        this.Locations_segmentShowing['maxSpeed'] = gl.getUniformLocation(this.program_segmentShowing, 'maxSpeed')
+        console.log(this.Locations_segmentShowing);
+
+        this.vao_segmentShowing = gl.createVertexArray()!
+        gl.bindVertexArray(this.vao_segmentShowing)
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.pposBuffer_simulate_1)
+        gl.enableVertexAttribArray(this.Locations_segmentShowing['positionInfo_from'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_segmentShowing['positionInfo_from'] as number,
+            3,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.vertexAttribDivisor(this.Locations_segmentShowing['positionInfo_from'] as number, 1)
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.pposBuffer_simulate_2)
+        gl.enableVertexAttribArray(this.Locations_segmentShowing['positionInfo_to'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_segmentShowing['positionInfo_to'] as number,
+            3,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.vertexAttribDivisor(this.Locations_segmentShowing['positionInfo_to'] as number, 1)
+
+        gl.bindVertexArray(null)
+    }
 
 
     async getStationData(url: string) {
@@ -341,8 +524,28 @@ class FlowLayer {
         return velocityData
     }
 
+    printBuffer(gl: WebGL2RenderingContext, buffer: WebGLBuffer, size: number, label: string = '') {
+        ////// debug
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+        const debugArr = new Float32Array(size)
+        gl.getBufferSubData(gl.ARRAY_BUFFER, 0, debugArr)
+        console.log(`${label}`, debugArr)
+        gl.bindBuffer(gl.ARRAY_BUFFER, null)
+    }
+    xfSwap() {
+        let tempxfo = this.xfo_simulate_1
+        this.xfo_simulate_1 = this.xfo_simulate_2
+        this.xfo_simulate_2 = tempxfo
+
+        let tempVao = this.vao_simulate_1
+        this.vao_simulate_1 = this.vao_simulate_2
+        this.vao_simulate_2 = tempVao
+    }
 
 }
+
+
+
 
 
 export const initMap = () => {

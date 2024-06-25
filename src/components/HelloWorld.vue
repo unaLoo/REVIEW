@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-// import { prepare } from '../exps/01triangle/main';
+// import { prepare,instansDraw } from '../exps/01triangle/main';
 // import { main, main2 } from '../exps/02texture/main'
 // import { main, main3d } from '../exps/03transform/main'
 // import { initMap } from '../exps/04polygon/main'
-import { main } from '../exps/05XFBO/main'
-// import { initMap } from '../exps/06flow/main'
+// import { main } from '../exps/05XFBO/main'
+import { initMap } from '../exps/06flow/main'
+
 
 onMounted(() => {
-  // initMap()
-  main()
+  initMap()
+  // instansDraw()
 })
 
 </script>
@@ -17,7 +18,7 @@ onMounted(() => {
 <template>
   <div class="main">
     <canvas id='playground'></canvas>
-    <!-- <div id="map"></div> -->
+    <div id="map"></div>
   </div>
 </template>
 

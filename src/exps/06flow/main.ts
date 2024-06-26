@@ -40,7 +40,10 @@ class FlowLayer {
     pposBuffer_simulate_2: WebGLBuffer | null = null
     vao_simulate_1: WebGLVertexArrayObject | null = null
     vao_simulate_2: WebGLVertexArrayObject | null = null
-    velocityBuffer: WebGLBuffer | null = null
+    // velocityBuffer: WebGLBuffer | null = null
+    velocityBuffer1: WebGLBuffer | null = null
+    velocityBuffer2: WebGLBuffer | null = null
+
     xfo_simulate_1: WebGLTransformFeedback | null = null
     xfo_simulate_2: WebGLTransformFeedback | null = null
 
@@ -50,12 +53,10 @@ class FlowLayer {
     vao_segmentShowing: WebGLVertexArrayObject | null = null
 
 
-
-
     /// static data
     flowExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
     flowMaxVelocity: number = 0
-    particelNum: number = 500
+    particelNum: number = 65535
     dropRate: number = 0.003
     dropRateBump: number = 0.001
     velocityFactor: number = 1.0
@@ -158,6 +159,9 @@ class FlowLayer {
             gl.useProgram(this.program_simulate!)
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
             gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.xfo_simulate_1)
+            gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_2)
+            gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer2)
+
             gl.bindVertexArray(this.vao_simulate_1)
 
             gl.uniform4f(this.Locations_simulate['mapExtent'], this.mapExtent[0], this.mapExtent[1], this.mapExtent[2], this.mapExtent[3])
@@ -165,7 +169,7 @@ class FlowLayer {
             gl.uniformMatrix4fv(this.Locations_simulate['u_matrix'], false, matrix)
             gl.uniform1f(this.Locations_simulate['maxSpeed'], this.flowMaxVelocity)
             gl.uniform1f(this.Locations_simulate['randomSeed'], Math.random())
-            console.log(this.particelNum)
+            // console.log(this.particelNum)
             gl.uniform1i(this.Locations_simulate['particelNum'], this.particelNum)
             gl.uniform1f(this.Locations_simulate['dropRate'], this.dropRate)
             gl.uniform1f(this.Locations_simulate['dropRateBump'], this.dropRateBump)
@@ -187,7 +191,7 @@ class FlowLayer {
             gl.uniformMatrix4fv(this.Locations_segmentShowing['u_matrix'], false, matrix)
             gl.uniform1f(this.Locations_segmentShowing['maxSpeed'], this.flowMaxVelocity)
             gl.bindVertexArray(this.vao_segmentShowing)
-            gl.drawArraysInstanced(gl.POINTS, 0, 1, this.particelNum)
+            gl.drawArraysInstanced(gl.POINTS, 0, 2, this.particelNum)
             // gl.drawArrays(gl.POINTS, 0, this.particelNum)
             // gl.drawArraysInstanced(gl.POINTS, 0, 2, 2)
 
@@ -201,10 +205,10 @@ class FlowLayer {
 
         window.addEventListener('keydown', (e) => {
             if (e.key == 'd') {
-                this.printBuffer(gl, this.pposBuffer_simulate_1!, this.particelNum * 3);
+                this.printBuffer(gl, this.pposBuffer_simulate_1!, this.particelNum * 4);
             }
             else if (e.key == 'f') {
-                this.printBuffer(gl, this.pposBuffer_simulate_2!, this.particelNum * 3);
+                this.printBuffer(gl, this.pposBuffer_simulate_2!, this.particelNum * 4);
 
             }
         })
@@ -371,7 +375,9 @@ class FlowLayer {
     async programInit_simulate(gl: WebGL2RenderingContext) {
         let particleInfoData1 = new Array(this.particelNum * 4).fill(0)
         let particleInfoData2 = new Array(this.particelNum * 4).fill(0)
-        let velocityColorData = new Array(this.particelNum).fill(0)
+        let velocityColorData1 = new Array(this.particelNum).fill(0)
+        let velocityColorData2 = new Array(this.particelNum).fill(0)
+
         for (let i = 0; i < this.particelNum; i += 1) {
             particleInfoData2[i * 3 + 0] = particleInfoData1[i * 3 + 0] += Math.random()
             particleInfoData2[i * 3 + 1] = particleInfoData1[i * 3 + 1] += Math.random()
@@ -386,6 +392,8 @@ class FlowLayer {
         this.program_simulate = util.createProgram2(gl, VS, FS, outVaryings)!
 
         this.Locations_simulate['a_particleInfo'] = gl.getAttribLocation(this.program_simulate, 'a_particleInfo')
+        // this.Locations_simulate['a_velocity'] = gl.getAttribLocation(this.program_simulate, 'a_velocity')
+
         this.Locations_simulate['mapExtent'] = gl.getUniformLocation(this.program_simulate, 'mapExtent')
         this.Locations_simulate['flowExtent'] = gl.getUniformLocation(this.program_simulate, 'flowExtent')
         this.Locations_simulate['u_matrix'] = gl.getUniformLocation(this.program_simulate, 'u_matrix')
@@ -396,17 +404,20 @@ class FlowLayer {
         this.Locations_simulate['speedFactor'] = gl.getUniformLocation(this.program_simulate, 'speedFactor')
         this.Locations_simulate['uvTexture'] = gl.getUniformLocation(this.program_simulate, 'uvTexture')
 
-        this.velocityBuffer = util.createVBO(gl, velocityColorData)
+        console.log(this.Locations_simulate)
+
+        this.velocityBuffer1 = util.createVBO(gl, velocityColorData1)
+        this.velocityBuffer2 = util.createVBO(gl, velocityColorData2)
+
         gl.bindBuffer(gl.ARRAY_BUFFER, null)
 
         this.vao_simulate_1 = gl.createVertexArray()!
         gl.bindVertexArray(this.vao_simulate_1)
-        console.log('!', particleInfoData1)
         this.pposBuffer_simulate_1 = util.createVBO(gl, particleInfoData1)
         gl.enableVertexAttribArray(this.Locations_simulate['a_particleInfo'] as number)
         gl.vertexAttribPointer(
             this.Locations_simulate['a_particleInfo'] as number,
-            3,
+            4,
             gl.FLOAT,
             false,
             0,
@@ -420,25 +431,35 @@ class FlowLayer {
         gl.enableVertexAttribArray(this.Locations_simulate['a_particleInfo'] as number)
         gl.vertexAttribPointer(
             this.Locations_simulate['a_particleInfo'] as number,
-            3,
+            4,
             gl.FLOAT,
             false,
             0,
             0
         )
+        // this.velocityBuffer2 = util.createVBO(gl, velocityColorData2)
+        // gl.enableVertexAttribArray(this.Locations_simulate['a_velocity'] as number)
+        // gl.vertexAttribPointer(
+        //     this.Locations_simulate['a_velocity'] as number,
+        //     1,
+        //     gl.FLOAT,
+        //     false,
+        //     0,
+        //     0
+        // )
         gl.bindVertexArray(null)
         gl.bindBuffer(gl.ARRAY_BUFFER, null)
 
         this.xfo_simulate_1 = gl.createTransformFeedback()!
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.xfo_simulate_1)
         gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_2)
-        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer)
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer2)
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
 
         this.xfo_simulate_2 = gl.createTransformFeedback()!
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.xfo_simulate_2)
         gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_1)
-        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer)
+        gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer1)
         gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
     }
 
@@ -449,8 +470,8 @@ class FlowLayer {
         const FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS)!
         this.program_segmentShowing = util.createProgram(gl, VS, FS)!
 
-        this.Locations_segmentShowing['positionInfo_from'] = gl.getAttribLocation(this.program_segmentShowing, 'positionInfo_from')
-        this.Locations_segmentShowing['positionInfo_to'] = gl.getAttribLocation(this.program_segmentShowing, 'positionInfo_to')
+        this.Locations_segmentShowing['a_positionInfo'] = gl.getAttribLocation(this.program_segmentShowing, 'a_positionInfo')
+        this.Locations_segmentShowing['a_velocity'] = gl.getAttribLocation(this.program_segmentShowing, 'a_velocity')
         this.Locations_segmentShowing['u_matrix'] = gl.getUniformLocation(this.program_segmentShowing, 'u_matrix')
         this.Locations_segmentShowing['maxSpeed'] = gl.getUniformLocation(this.program_segmentShowing, 'maxSpeed')
         console.log(this.Locations_segmentShowing);
@@ -459,29 +480,29 @@ class FlowLayer {
         gl.bindVertexArray(this.vao_segmentShowing)
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.pposBuffer_simulate_1)
-        gl.enableVertexAttribArray(this.Locations_segmentShowing['positionInfo_from'] as number)
+        gl.enableVertexAttribArray(this.Locations_segmentShowing['a_positionInfo'] as number)
         gl.vertexAttribPointer(
-            this.Locations_segmentShowing['positionInfo_from'] as number,
-            3,
+            this.Locations_segmentShowing['a_positionInfo'] as number,
+            4,
             gl.FLOAT,
             false,
             0,
             0
         )
-        gl.vertexAttribDivisor(this.Locations_segmentShowing['positionInfo_from'] as number, 1)
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.pposBuffer_simulate_2)
-        gl.enableVertexAttribArray(this.Locations_segmentShowing['positionInfo_to'] as number)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.velocityBuffer1)
+        gl.enableVertexAttribArray(this.Locations_segmentShowing['a_velocity'] as number)
         gl.vertexAttribPointer(
-            this.Locations_segmentShowing['positionInfo_to'] as number,
-            3,
+            this.Locations_segmentShowing['a_velocity'] as number,
+            1,
             gl.FLOAT,
             false,
             0,
             0
         )
-        gl.vertexAttribDivisor(this.Locations_segmentShowing['positionInfo_to'] as number, 1)
+        gl.vertexAttribDivisor(this.Locations_segmentShowing['a_velocity'] as number, 1)
 
+    
         gl.bindVertexArray(null)
     }
 
@@ -534,6 +555,18 @@ class FlowLayer {
         let tempVao = this.vao_simulate_1
         this.vao_simulate_1 = this.vao_simulate_2
         this.vao_simulate_2 = tempVao
+
+        // gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_2)
+        // gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer2)
+
+        let tempBuffer4pos = this.pposBuffer_simulate_2
+        this.pposBuffer_simulate_2 = this.pposBuffer_simulate_1
+        this.pposBuffer_simulate_1 = tempBuffer4pos
+
+        let tempBuffer4Velocity = this.velocityBuffer2
+        this.velocityBuffer2 = this.velocityBuffer1
+        this.velocityBuffer1 = tempBuffer4Velocity
+
     }
 
 }

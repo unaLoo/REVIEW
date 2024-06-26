@@ -1,6 +1,7 @@
 #version 300 es
 
-in vec3 a_particleInfo;//(x,y,velocity)
+in vec4 a_particleInfo;//(x1,y1, x2,y2)
+// in float a_velocity;// v_to
 
 // global uniform
 uniform vec4 mapExtent;
@@ -93,7 +94,7 @@ void main() {
     // }
 
     vec2 nowPos = a_particleInfo.xy;
-    float nowSpeed = a_particleInfo.z;
+    // float nowSpeed = a_velocity + 0.1f;
     vec2 seed = randomSeed * nowPos;
 
     // first time must rebirth
@@ -125,7 +126,7 @@ void main() {
         out_verlocity = 0.0f;
     } else {
         // out_particleInfo = vec3(newPos.x, newPos.y, length(uvSpeed) * speedFactor);
-        out_particleInfo = vec4(nowPos.x, nowPos.y, newPos.x , newPos.y);
+        out_particleInfo = vec4(nowPos.x, nowPos.y, newPos.x, newPos.y);
         out_verlocity = length(uvSpeed);
     }
 

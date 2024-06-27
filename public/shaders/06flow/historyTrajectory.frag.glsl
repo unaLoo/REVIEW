@@ -2,13 +2,13 @@
 precision highp float;
 
 uniform sampler2D showTexture;
-in vec2 v_texcoord;
+uniform float fadeFactor;
+in vec2 v_texCoord;
 
 out vec4 fragColor;
 
-const float fadeFactor = 0.99f;
 
 void main() {
-    vec4 color = texture(showTexture, v_texcoord);
+    vec4 color = texture(showTexture, v_texCoord);
     fragColor = color * fadeFactor;
 }

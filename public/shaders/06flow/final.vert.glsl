@@ -1,7 +1,6 @@
 #version 300 es
 
 uniform sampler2D showTexture;
-uniform float fadeFactor;
 
 out vec2 v_texCoord;
 

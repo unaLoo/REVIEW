@@ -56,7 +56,7 @@ class FlowLayer {
     /// static data
     flowExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
     flowMaxVelocity: number = 0
-    particelNum: number = 65535
+    particelNum: number = 100
     dropRate: number = 0.003
     dropRateBump: number = 0.001
     velocityFactor: number = 1.0
@@ -153,7 +153,7 @@ class FlowLayer {
             // gl.enable(gl.BLEND);
             // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
             // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-
+            
             ////////// 3rd::: simulate program to get new position
             gl.enable(gl.RASTERIZER_DISCARD)
             gl.useProgram(this.program_simulate!)
@@ -184,15 +184,14 @@ class FlowLayer {
             gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
             gl.disable(gl.RASTERIZER_DISCARD)
 
-
             // ////////// 4rd::: the segment showing program
             gl.useProgram(this.program_segmentShowing!)
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
             gl.uniformMatrix4fv(this.Locations_segmentShowing['u_matrix'], false, matrix)
             gl.uniform1f(this.Locations_segmentShowing['maxSpeed'], this.flowMaxVelocity)
             gl.bindVertexArray(this.vao_segmentShowing)
-            gl.drawArraysInstanced(gl.POINTS, 0, 2, this.particelNum)
-            // gl.drawArrays(gl.POINTS, 0, this.particelNum)
+            gl.drawArraysInstanced(gl.LINES, 0, 2, this.particelNum)
+            // gl.drawArrays(gl.LINES, 0, this.particelNum)
             // gl.drawArraysInstanced(gl.POINTS, 0, 2, 2)
 
             this.xfSwap()
@@ -414,6 +413,7 @@ class FlowLayer {
         this.vao_simulate_1 = gl.createVertexArray()!
         gl.bindVertexArray(this.vao_simulate_1)
         this.pposBuffer_simulate_1 = util.createVBO(gl, particleInfoData1)
+        console.log(particleInfoData1)
         gl.enableVertexAttribArray(this.Locations_simulate['a_particleInfo'] as number)
         gl.vertexAttribPointer(
             this.Locations_simulate['a_particleInfo'] as number,
@@ -479,7 +479,7 @@ class FlowLayer {
         this.vao_segmentShowing = gl.createVertexArray()!
         gl.bindVertexArray(this.vao_segmentShowing)
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.pposBuffer_simulate_1)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.pposBuffer_simulate_2)
         gl.enableVertexAttribArray(this.Locations_segmentShowing['a_positionInfo'] as number)
         gl.vertexAttribPointer(
             this.Locations_segmentShowing['a_positionInfo'] as number,
@@ -489,8 +489,9 @@ class FlowLayer {
             0,
             0
         )
+        gl.vertexAttribDivisor(this.Locations_segmentShowing['a_positionInfo'] as number, 1)
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.velocityBuffer1)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.velocityBuffer2)
         gl.enableVertexAttribArray(this.Locations_segmentShowing['a_velocity'] as number)
         gl.vertexAttribPointer(
             this.Locations_segmentShowing['a_velocity'] as number,

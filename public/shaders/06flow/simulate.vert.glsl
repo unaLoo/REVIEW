@@ -20,7 +20,7 @@ uniform float speedFactor;
 
 uniform sampler2D uvTexture;
 
-out vec4 out_particleInfo;//(x,y,velocity)
+out vec4 out_particleInfo;//(x1,y1, x2,y2)
 out float out_verlocity;
 
 const float PI = 3.14159265359f;
@@ -86,52 +86,55 @@ vec2 getVelocity(vec2 uv) {
 
 void main() {
 
-    vec4 cExtent = currentExtent();
-    int particleIndex = gl_VertexID;
+    // vec4 cExtent = currentExtent();
+    // int particleIndex = gl_VertexID;
 
-    // if(cExtent.z <= cExtent.x || cExtent.w <= cExtent.y || particleIndex >= particleNum) {
+    // // if(cExtent.z <= cExtent.x || cExtent.w <= cExtent.y || particleIndex >= particleNum) {
+    // //     return;
+    // // }
+
+    vec2 nowPos = a_particleInfo.xy;
+    // // float nowSpeed = a_velocity + 0.1f;
+    // vec2 seed = randomSeed * nowPos;
+
+    // // first time must rebirth
+    // if(!validExtentCheck(nowPos, cExtent)) {
+    //     vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
+    //     float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
+    //     float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
+    //     out_particleInfo = vec4(x, y, x, y);// lng lat
+    //     out_verlocity = 0.0f;
     //     return;
     // }
 
-    vec2 nowPos = a_particleInfo.xy;
-    // float nowSpeed = a_velocity + 0.1f;
-    vec2 seed = randomSeed * nowPos;
+    // vec2 mercatorPos = lnglat2Mercator(nowPos.x, nowPos.y);
+    // vec4 posinCS = u_matrix * vec4(mercatorPos, 0.0f, 1.0f);
+    // vec2 posInSS = posinCS.xy / posinCS.w;
+    // vec2 uv = (posInSS + 1.0f) / 2.0f;
+    // uv = vec2(uv.x, uv.y);
+    // vec2 uvSpeed = getVelocity(uv);
+    // vec2 newPos = calculateDisplacedLonLat(nowPos.x, nowPos.y, uvSpeed.x, uvSpeed.y);
+    // newPos = clamp(newPos, cExtent.xy, cExtent.zw);
 
-    // first time must rebirth
-    if(!validExtentCheck(nowPos, cExtent)) {
-        vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
-        float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
-        float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
-        out_particleInfo = vec4(x, y, x, y);// lng lat
-        out_verlocity = 0.0f;
-        return;
-    }
-
-    vec2 mercatorPos = lnglat2Mercator(nowPos.x, nowPos.y);
-    vec4 posinCS = u_matrix * vec4(mercatorPos, 0.0f, 1.0f);
-    vec2 posInSS = posinCS.xy / posinCS.w;
-    vec2 uv = (posInSS + 1.0f) / 2.0f;
-    uv = vec2(uv.x, uv.y);
-    vec2 uvSpeed = getVelocity(uv);
-    vec2 newPos = calculateDisplacedLonLat(nowPos.x, nowPos.y, uvSpeed.x, uvSpeed.y);
-    newPos = clamp(newPos, cExtent.xy, cExtent.zw);
-
-    if(drop(uvSpeed, seed) == 1.0f || uv.x * uv.y == 0.0f || !validExtentCheck(newPos, cExtent)) {
-        vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
-        float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
-        float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
-        // out_particleInfo = vec3(x, y, 0.0f);
-        // out_particleInfo = vec3(nowPos.x, nowPos.y, 0.0f);
-        out_particleInfo = vec4(x, y, x, y);// lng lat
-        out_verlocity = 0.0f;
-    } else {
-        // out_particleInfo = vec3(newPos.x, newPos.y, length(uvSpeed) * speedFactor);
-        out_particleInfo = vec4(nowPos.x, nowPos.y, newPos.x, newPos.y);
-        out_verlocity = length(uvSpeed);
-    }
+    // if(drop(uvSpeed, seed) == 1.0f || uv.x * uv.y == 0.0f || !validExtentCheck(newPos, cExtent)) {
+    //     vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
+    //     float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
+    //     float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
+    //     // out_particleInfo = vec3(x, y, 0.0f);
+    //     // out_particleInfo = vec3(nowPos.x, nowPos.y, 0.0f);
+    //     out_particleInfo = vec4(x, y, x, y);// lng lat
+    //     out_verlocity = 0.0f;
+    // } else {
+    //     // out_particleInfo = vec3(newPos.x, newPos.y, length(uvSpeed) * speedFactor);
+    //     out_particleInfo = vec4(nowPos.x, nowPos.y, newPos.x, newPos.y);
+    //     out_verlocity = length(uvSpeed);
+    // }
 
     //// test
-    // float x = clamp(a_particleInfo.x + 0.0001f, 0.8f, 0.9f);
-    // float y = clamp(a_particleInfo.y + 0.0001f, 0.4f, 0.5f);
-    // out_particleInfo = vec3(x, y, 0.5f);
+    // float x = clamp(a_particleInfo.x + 0.0001f, 0.0f, 0.9f);
+    // float y = clamp(a_particleInfo.y + 0.0001f, 0.0f, 0.9f);
+    // float x = a_particleInfo.x + 0.0001f;
+    // float y = a_particleInfo.y + 0.0001f;
+    out_particleInfo = a_particleInfo+vec4(0.001f);// lng lat
+    out_verlocity = 0.0f;
 }

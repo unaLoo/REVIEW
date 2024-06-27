@@ -19,5 +19,6 @@ vec3 getColor(float v) {
 void main() {
     float alpha = 0.9f;
     vec3 color = getColor(velocity);
-    fragColor = vec4(color, 1.0f) * alpha;
+    // fragColor = vec4(color, 1.0f) * alpha;
+    fragColor = vec4(1.0,0.0,0.0,1.0);
 }

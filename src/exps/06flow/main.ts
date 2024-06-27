@@ -111,6 +111,9 @@ class FlowLayer {
         await this.programInit_historyShowing(gl)
         console.log('historyShowing program inited')
 
+        await this.programInit_finalShowing(gl)
+        console.log('finalShowing program inited')
+
 
         this.ready = true
         // console.log(gl.getParameter(gl.MAX_ELEMENT_INDEX))
@@ -208,6 +211,8 @@ class FlowLayer {
             gl.bindTexture(gl.TEXTURE_2D, this.trajectoryTexture_2!) // history info in trajectoryTexture_2
             gl.uniform1i(this.Locations_historyShowing['showTexture'] as WebGLUniformLocation, 0)
             gl.uniform1f(this.Locations_historyShowing['fadeFactor'] as WebGLUniformLocation, this.fadeFactor)
+            gl.clearColor(0, 0, 0, 0)
+            gl.clear(gl.COLOR_BUFFER_BIT)
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
             ////// 4.2 ::: the segment showing program  ///// single segment SHOWING  like particle
@@ -221,7 +226,13 @@ class FlowLayer {
             gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
             ////////// 5 ::: render to canvas
-
+            gl.useProgram(this.program_finalShowing!)
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+            gl.activeTexture(gl.TEXTURE0)
+            gl.bindTexture(gl.TEXTURE_2D, this.trajectoryTexture_1!) // history info in trajectoryTexture_1
+            // gl.enable(gl.BLEND);
+            // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
 
 
@@ -560,14 +571,13 @@ class FlowLayer {
 
     }
 
-    async programInit_finalShowing(gl: WebGL2RenderingContext){
+    async programInit_finalShowing(gl: WebGL2RenderingContext) {
         const VSS = (await axios.get('/shaders/06flow/final.vert.glsl')).data
         const FSS = (await axios.get('/shaders/06flow/final.frag.glsl')).data
         const VS = util.createShader(gl, gl.VERTEX_SHADER, VSS)!
         const FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS)!
         this.program_finalShowing = util.createProgram(gl, VS, FS)!
-
-
+        this.Locations_finalShowing['showTexture'] = gl.getUniformLocation(this.program_finalShowing, 'showTexture')
     }
 
 
@@ -632,6 +642,14 @@ class FlowLayer {
         let tempBuffer4Velocity = this.velocityBuffer2
         this.velocityBuffer2 = this.velocityBuffer1
         this.velocityBuffer1 = tempBuffer4Velocity
+
+        let tempFBOshowing = this.fbo_historyShowing_1
+        this.fbo_historyShowing_1 = this.fbo_historyShowing_2
+        this.fbo_historyShowing_2 = tempFBOshowing
+
+        let tempTextureshowing = this.trajectoryTexture_1
+        this.trajectoryTexture_1 = this.trajectoryTexture_2
+        this.trajectoryTexture_2 = tempTextureshowing
 
     }
 

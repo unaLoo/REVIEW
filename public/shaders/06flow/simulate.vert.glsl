@@ -25,7 +25,7 @@ out float out_verlocity;
 
 const float PI = 3.14159265359f;
 const float EARTH_RADIUS = 6371000.0f;
-const float internalFactor = 10.0f;
+const float internalFactor = 20.0f;
 
 /// tool func
 vec2 lnglat2Mercator(float lng, float lat) {

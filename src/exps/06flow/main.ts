@@ -56,7 +56,7 @@ class FlowLayer {
     /// static data
     flowExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
     flowMaxVelocity: number = 0
-    particelNum: number = 100
+    particelNum: number = 65536
     dropRate: number = 0.003
     dropRateBump: number = 0.001
     velocityFactor: number = 1.0
@@ -184,15 +184,23 @@ class FlowLayer {
             gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
             gl.disable(gl.RASTERIZER_DISCARD)
 
-            // ////////// 4rd::: the segment showing program
+            ////////// 4rd::: the segment showing program
             gl.useProgram(this.program_segmentShowing!)
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
             gl.uniformMatrix4fv(this.Locations_segmentShowing['u_matrix'], false, matrix)
             gl.uniform1f(this.Locations_segmentShowing['maxSpeed'], this.flowMaxVelocity)
             gl.bindVertexArray(this.vao_segmentShowing)
             gl.drawArraysInstanced(gl.LINES, 0, 2, this.particelNum)
-            // gl.drawArrays(gl.LINES, 0, this.particelNum)
-            // gl.drawArraysInstanced(gl.POINTS, 0, 2, 2)
+
+
+
+
+
+
+
+
+
+
 
             this.xfSwap()
 

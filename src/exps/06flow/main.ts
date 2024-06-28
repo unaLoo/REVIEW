@@ -50,7 +50,8 @@ class FlowLayer {
 
     program_segmentShowing: WebGLProgram | null = null
     Locations_segmentShowing: { [name: string]: number | WebGLUniformLocation | null } = {}
-    vao_segmentShowing: WebGLVertexArrayObject | null = null
+    vao_segmentShowing1: WebGLVertexArrayObject | null = null
+    vao_segmentShowing2: WebGLVertexArrayObject | null = null
 
 
     program_historyShowing: WebGLProgram | null = null
@@ -64,6 +65,18 @@ class FlowLayer {
     Locations_finalShowing: { [name: string]: number | WebGLUniformLocation | null } = {}
 
 
+    nowXFVAO_simu: WebGLVertexArrayObject | null = null
+    nowXFO_simu: WebGLTransformFeedback | null = null
+    nowSegRenderVAO: WebGLVertexArrayObject | null = null
+    nowRenderFBO:WebGLFramebuffer | null = null
+    nowHistoryTrajectoryTexture: WebGLTexture | null = null
+
+
+
+
+    programControl: { [name: string]: Boolean } = {}
+
+
     /// static data
     flowExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
     flowMaxVelocity: number = 0
@@ -71,9 +84,12 @@ class FlowLayer {
     dropRate: number = 0.003
     dropRateBump: number = 0.001
     velocityFactor: number = 1.0
-    fadeFactor: number = 0.99
+    fadeFactor: number = 0.999
+    aaWidth: number = 1.0
+    fillWidth: number = 3.0
 
     /// dynamic data
+    frames: number = 0
     randomSeed = Math.random()
     totalTime = 120 //frame
     nowFrame = 0
@@ -114,15 +130,84 @@ class FlowLayer {
         await this.programInit_finalShowing(gl)
         console.log('finalShowing program inited')
 
+        this.programControl = {
+            'delaunay': true,
+            'delaunay_showing': false,
+            'simulate': true,
+            // 'history_showing': true,
+            // 'segment_showing': true,
+            'final_showing': true,
+            'clear_fbo': false,
+
+            'onlySegment': false,
+            'historyAndSegment': true
+
+        }
+
+        // console.log(gl.getParameter(gl.MAX_ELEMENT_INDEX))
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key == '1') {
+                this.programControl['delaunay'] = !this.programControl['delaunay']
+            }
+            if (e.key == '2') {
+                this.programControl['delaunay_showing'] = !this.programControl['delaunay_showing']
+            }
+            if (e.key == '3') {
+                // stop
+                this.programControl['simulate'] = !this.programControl['simulate']
+            }
+            if (e.key == '6') {
+                this.programControl['final_showing'] = !this.programControl['final_showing']
+            }
+            if (e.key == '7') {
+                // one time clear
+                this.programControl['clear_fbo'] = !this.programControl['clear_fbo']
+            }
+        })
+
+        const idle = () => {
+            this.programControl['clear_fbo'] = true
+
+            // this.programControl['onlySegment'] = true
+            // this.programControl['historyAndSegment'] = false
+        }
+
+        const restart = () => {
+            this.programControl['clear_fbo'] = false
+
+            // this.programControl['onlySegment'] = false
+            // this.programControl['historyAndSegment'] = true
+        }
+
+        console.log('programControl:', this.programControl)
+        this.map.on('movestart', idle)
+        this.map.on('move', idle)
+        this.map.on('moveend', restart)
+        this.map.on('dragstart', idle)
+        this.map.on('drag', idle)
+        this.map.on('dragend', restart)
+        this.map.on('zoomstart', idle)
+        this.map.on('zoom', idle)
+        this.map.on('zoomend', restart)
+        this.map.on('rotatestart', idle)
+        this.map.on('rotate', idle)
+        this.map.on('rotateend', restart)
+        this.map.on('pitchstart', idle)
+        this.map.on('pitch', idle)
+        this.map.on('pitchend', restart)
+
+
 
         this.ready = true
-        // console.log(gl.getParameter(gl.MAX_ELEMENT_INDEX))
+
     }
 
     render(gl: WebGL2RenderingContext, matrix: Array<number>) {
         if (this.ready) {
 
             ////////// update dynamic data
+            this.frames += 1
             this.nowFrame = (this.nowFrame + 1) % this.totalTime
             this.progressRatio = this.nowFrame / this.totalTime
             this.mapExtent = getMapExtent(this.map!)
@@ -138,109 +223,146 @@ class FlowLayer {
             // console.log(this.randomSeed)
 
             ////////// 1st::: delaunay program to get uv texture
+            this.xfSwap(this.frames)
 
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_delaunay)
-            // gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-            gl.useProgram(this.programe_delaunay!)
-            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-            gl.bindVertexArray(this.vao_delaunay)
-            gl.uniformMatrix4fv(this.Locations_delaunay['u_matrix'] as WebGLUniformLocation, false, matrix)
-            gl.uniform4f(this.Locations_delaunay['u_flowExtent'] as WebGLUniformLocation, this.flowExtent[0], this.flowExtent[1], this.flowExtent[2], this.flowExtent[3])
-            gl.uniform1f(this.Locations_delaunay['progressRatio'] as WebGLUniformLocation, this.progressRatio)
-            gl.clearColor(0, 0, 0, 0)
-            gl.clear(gl.COLOR_BUFFER_BIT)
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.stationIndexBuffer)
-            gl.drawElements(gl.TRIANGLES, this.indexLength_delaunay, gl.UNSIGNED_INT, 0)
+            if (this.programControl['delaunay']) {
 
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_delaunay)
+
+                gl.useProgram(this.programe_delaunay!)
+                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+                gl.bindVertexArray(this.vao_delaunay)
+                gl.uniformMatrix4fv(this.Locations_delaunay['u_matrix'] as WebGLUniformLocation, false, matrix)
+                gl.uniform4f(this.Locations_delaunay['u_flowExtent'] as WebGLUniformLocation, this.flowExtent[0], this.flowExtent[1], this.flowExtent[2], this.flowExtent[3])
+                gl.uniform1f(this.Locations_delaunay['progressRatio'] as WebGLUniformLocation, this.progressRatio)
+                gl.clearColor(0, 0, 0, 0)
+                gl.clear(gl.COLOR_BUFFER_BIT)
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.stationIndexBuffer)
+                gl.drawElements(gl.TRIANGLES, this.indexLength_delaunay, gl.UNSIGNED_INT, 0)
+
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+            }
 
 
             ////////// 2nd::: show uvTexture program  ///// background SHOWING
-            // gl.useProgram(this.program_showing!)
-            // gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-
-            // gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-            // gl.activeTexture(gl.TEXTURE0)
-            // // gl.bindTexture(gl.TEXTURE_2D, this.testTexture)
-            // gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
-            // gl.bindVertexArray(this.vao_showing)
-
-            // gl.uniform1i(this.Locations_showing['uv_texture'] as WebGLUniformLocation, 0)
-
-            // gl.enable(gl.BLEND);
-            // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-            // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+            if (this.programControl['delaunay_showing']) {
+                gl.useProgram(this.program_showing!)
+                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+                gl.activeTexture(gl.TEXTURE0)
+                gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
+                gl.bindVertexArray(this.vao_showing)
+                gl.uniform1i(this.Locations_showing['uv_texture'] as WebGLUniformLocation, 0)
+                // gl.enable(gl.BLEND);
+                // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+            }
 
             ////////// 3rd::: simulate program to get new position
-            gl.enable(gl.RASTERIZER_DISCARD)
-            gl.useProgram(this.program_simulate!)
-            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-            gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.xfo_simulate_1)
-            gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_2)
-            gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer2)
+            if (this.programControl['simulate']) {
+                gl.enable(gl.RASTERIZER_DISCARD)
+                gl.useProgram(this.program_simulate!)
+                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+                gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.nowXFO_simu!)
+                // gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.xfo_simulate_1)
+                // gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_2)// output
+                // gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer2)// output
 
-            gl.bindVertexArray(this.vao_simulate_1)
+                gl.bindVertexArray(this.nowXFVAO_simu)
+                // gl.bindVertexArray(this.vao_simulate_1)
+                gl.uniform4f(this.Locations_simulate['mapExtent'], this.mapExtent[0], this.mapExtent[1], this.mapExtent[2], this.mapExtent[3])
+                gl.uniform4f(this.Locations_simulate['flowExtent'], this.flowExtent[0], this.flowExtent[1], this.flowExtent[2], this.flowExtent[3])
+                gl.uniformMatrix4fv(this.Locations_simulate['u_matrix'], false, matrix)
+                gl.uniform1f(this.Locations_simulate['maxSpeed'], this.flowMaxVelocity)
+                gl.uniform1f(this.Locations_simulate['randomSeed'], Math.random())
+                // console.log(this.particelNum)
+                gl.uniform1i(this.Locations_simulate['particelNum'], this.particelNum)
+                gl.uniform1f(this.Locations_simulate['dropRate'], this.dropRate)
+                gl.uniform1f(this.Locations_simulate['dropRateBump'], this.dropRateBump)
+                gl.uniform1f(this.Locations_simulate['speedFactor'], this.velocityFactor)
+                gl.activeTexture(gl.TEXTURE0)
+                gl.bindTexture(gl.TEXTURE_2D, this.uvTexture!)
 
-            gl.uniform4f(this.Locations_simulate['mapExtent'], this.mapExtent[0], this.mapExtent[1], this.mapExtent[2], this.mapExtent[3])
-            gl.uniform4f(this.Locations_simulate['flowExtent'], this.flowExtent[0], this.flowExtent[1], this.flowExtent[2], this.flowExtent[3])
-            gl.uniformMatrix4fv(this.Locations_simulate['u_matrix'], false, matrix)
-            gl.uniform1f(this.Locations_simulate['maxSpeed'], this.flowMaxVelocity)
-            gl.uniform1f(this.Locations_simulate['randomSeed'], Math.random())
-            // console.log(this.particelNum)
-            gl.uniform1i(this.Locations_simulate['particelNum'], this.particelNum)
-            gl.uniform1f(this.Locations_simulate['dropRate'], this.dropRate)
-            gl.uniform1f(this.Locations_simulate['dropRateBump'], this.dropRateBump)
-            gl.uniform1f(this.Locations_simulate['speedFactor'], this.velocityFactor)
-            gl.activeTexture(gl.TEXTURE0)
-            gl.bindTexture(gl.TEXTURE_2D, this.uvTexture!)
-
-
-            gl.beginTransformFeedback(gl.POINTS)
-            gl.drawArrays(gl.POINTS, 0, this.particelNum)
-            gl.endTransformFeedback()
-            gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
-            gl.disable(gl.RASTERIZER_DISCARD)
+                gl.beginTransformFeedback(gl.POINTS)
+                gl.drawArrays(gl.POINTS, 0, this.particelNum)
+                gl.endTransformFeedback()
+                gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, null)
+                gl.bindBuffer(gl.ARRAY_BUFFER, null)
+                gl.disable(gl.RASTERIZER_DISCARD)
+            }
 
             //////////4 ::: render to frame buffer
             ////// 4.1 ::: the history trajectory showing program 
-            gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_1) // render to trajectoryTexture_1
+            if (this.programControl['historyAndSegment']) {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.nowRenderFBO!) // render to frame buffer
+                // gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_1) // render to trajectoryTexture_1
+                gl.clearColor(0, 0, 0, 0)
+                gl.clear(gl.COLOR_BUFFER_BIT)
+                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
-            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-            gl.useProgram(this.program_historyShowing!)
-            gl.activeTexture(gl.TEXTURE0)
-            gl.bindTexture(gl.TEXTURE_2D, this.trajectoryTexture_2!) // history info in trajectoryTexture_2
-            gl.uniform1i(this.Locations_historyShowing['showTexture'] as WebGLUniformLocation, 0)
-            gl.uniform1f(this.Locations_historyShowing['fadeFactor'] as WebGLUniformLocation, this.fadeFactor)
-            gl.clearColor(0, 0, 0, 0)
-            gl.clear(gl.COLOR_BUFFER_BIT)
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+                gl.useProgram(this.program_historyShowing!)
+                gl.activeTexture(gl.TEXTURE0)
+                gl.bindTexture(gl.TEXTURE_2D, this.nowHistoryTrajectoryTexture!) // history info in trajectoryTexture_1
+                // gl.bindTexture(gl.TEXTURE_2D, this.trajectoryTexture_2!) // history info in trajectoryTexture_2
+                gl.uniform1i(this.Locations_historyShowing['showTexture'] as WebGLUniformLocation, 0)
+                gl.activeTexture(gl.TEXTURE1)
+                gl.bindTexture(gl.TEXTURE_2D, this.uvTexture!) // history info in trajectoryTexture_2
+                gl.uniform1i(this.Locations_historyShowing['uv_texture'] as WebGLUniformLocation, 1)
+                gl.uniform1f(this.Locations_historyShowing['fadeFactor'] as WebGLUniformLocation, this.fadeFactor)
+                gl.clearColor(0, 0, 0, 0)
+                gl.clear(gl.COLOR_BUFFER_BIT)
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
-            ////// 4.2 ::: the segment showing program  ///// single segment SHOWING  like particle
-            gl.useProgram(this.program_segmentShowing!)
-            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-            gl.uniformMatrix4fv(this.Locations_segmentShowing['u_matrix'], false, matrix)
-            gl.uniform1f(this.Locations_segmentShowing['maxSpeed'], this.flowMaxVelocity)
-            gl.bindVertexArray(this.vao_segmentShowing)
-            gl.drawArraysInstanced(gl.LINES, 0, 2, this.particelNum)
 
-            gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+                // ////// 4.2 ::: the segment showing program  ///// single segment SHOWING  like particle
+                gl.useProgram(this.program_segmentShowing!)
+                gl.uniformMatrix4fv(this.Locations_segmentShowing['u_matrix'], false, matrix)
+                gl.uniform1f(this.Locations_segmentShowing['maxSpeed'], this.flowMaxVelocity)
+                gl.uniform2f(this.Locations_segmentShowing['u_canvasSize'], gl.canvas.width, gl.canvas.height)
+                gl.uniform1f(this.Locations_segmentShowing['aaWidth'] as WebGLUniformLocation, this.aaWidth)
+                gl.uniform1f(this.Locations_segmentShowing['fillWidth'] as WebGLUniformLocation, this.fillWidth)
+                gl.bindVertexArray(this.nowSegRenderVAO)
+                // gl.bindVertexArray(this.vao_segmentShowing1)
+                // gl.drawArraysInstanced(gl.LINES, 0, 2, this.particelNum)
+                gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.particelNum) //with anti-aliasing
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+            }
+
+            // if (this.programControl['onlySegment']) {
+            //     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_1) // render to trajectoryTexture_1
+            //     gl.clearColor(0, 0, 0, 0)
+            //     gl.clear(gl.COLOR_BUFFER_BIT)
+            //     gl.useProgram(this.program_segmentShowing!)
+            //     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+            //     gl.uniformMatrix4fv(this.Locations_segmentShowing['u_matrix'], false, matrix)
+            //     gl.uniform1f(this.Locations_segmentShowing['maxSpeed'], this.flowMaxVelocity)
+            //     gl.uniform2f(this.Locations_segmentShowing['u_canvasSize'], gl.canvas.width, gl.canvas.height)
+            //     gl.uniform1f(this.Locations_segmentShowing['aaWidth'] as WebGLUniformLocation, this.aaWidth)
+            //     gl.uniform1f(this.Locations_segmentShowing['fillWidth'] as WebGLUniformLocation, this.fillWidth)
+            //     gl.bindVertexArray(this.vao_segmentShowing1)
+            //     // gl.drawArraysInstanced(gl.LINES, 0, 2, this.particelNum) //   without anti-aliasing
+            //     gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.particelNum) //with anti-aliasing
+            //     gl.clearColor(0, 0, 0, 0)
+            //     gl.clear(gl.COLOR_BUFFER_BIT)
+            //     gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+            // }
+
+            if (this.programControl['clear_fbo']) {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_1) // render to trajectoryTexture_1
+                gl.clearColor(0, 0, 0, 0)
+                gl.clear(gl.COLOR_BUFFER_BIT)
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+            }
 
             ////////// 5 ::: render to canvas
-            gl.useProgram(this.program_finalShowing!)
-            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-            gl.activeTexture(gl.TEXTURE0)
-            gl.bindTexture(gl.TEXTURE_2D, this.trajectoryTexture_1!) // history info in trajectoryTexture_1
-            // gl.enable(gl.BLEND);
-            // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-
-
-
-
-
-
-
-            this.xfSwap()
+            if (this.programControl['final_showing']) {
+                gl.useProgram(this.program_finalShowing!)
+                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+                gl.activeTexture(gl.TEXTURE0)
+                gl.bindTexture(gl.TEXTURE_2D, this.trajectoryTexture_1!) // history info in trajectoryTexture_1
+                // gl.enable(gl.BLEND);
+                // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+            }
 
         }
         else {
@@ -477,16 +599,6 @@ class FlowLayer {
             0,
             0
         )
-        // this.velocityBuffer2 = util.createVBO(gl, velocityColorData2)
-        // gl.enableVertexAttribArray(this.Locations_simulate['a_velocity'] as number)
-        // gl.vertexAttribPointer(
-        //     this.Locations_simulate['a_velocity'] as number,
-        //     1,
-        //     gl.FLOAT,
-        //     false,
-        //     0,
-        //     0
-        // )
         gl.bindVertexArray(null)
         gl.bindBuffer(gl.ARRAY_BUFFER, null)
 
@@ -514,10 +626,14 @@ class FlowLayer {
         this.Locations_segmentShowing['a_velocity'] = gl.getAttribLocation(this.program_segmentShowing, 'a_velocity')
         this.Locations_segmentShowing['u_matrix'] = gl.getUniformLocation(this.program_segmentShowing, 'u_matrix')
         this.Locations_segmentShowing['maxSpeed'] = gl.getUniformLocation(this.program_segmentShowing, 'maxSpeed')
+        this.Locations_segmentShowing['u_canvasSize'] = gl.getUniformLocation(this.program_segmentShowing, 'u_canvasSize')
+        this.Locations_segmentShowing['aaWidth'] = gl.getUniformLocation(this.program_segmentShowing, 'aaWidth')
+        this.Locations_segmentShowing['fillWidth'] = gl.getUniformLocation(this.program_segmentShowing, 'fillWidth')
+
         console.log(this.Locations_segmentShowing);
 
-        this.vao_segmentShowing = gl.createVertexArray()!
-        gl.bindVertexArray(this.vao_segmentShowing)
+        this.vao_segmentShowing1 = gl.createVertexArray()!
+        gl.bindVertexArray(this.vao_segmentShowing1)
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.pposBuffer_simulate_2)
         gl.enableVertexAttribArray(this.Locations_segmentShowing['a_positionInfo'] as number)
@@ -542,9 +658,40 @@ class FlowLayer {
             0
         )
         gl.vertexAttribDivisor(this.Locations_segmentShowing['a_velocity'] as number, 1)
-
-
         gl.bindVertexArray(null)
+
+
+
+        this.vao_segmentShowing2 = gl.createVertexArray()!
+        gl.bindVertexArray(this.vao_segmentShowing2)
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.pposBuffer_simulate_1)
+        gl.enableVertexAttribArray(this.Locations_segmentShowing['a_positionInfo'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_segmentShowing['a_positionInfo'] as number,
+            4,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.vertexAttribDivisor(this.Locations_segmentShowing['a_positionInfo'] as number, 1)
+
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.velocityBuffer1)
+        gl.enableVertexAttribArray(this.Locations_segmentShowing['a_velocity'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_segmentShowing['a_velocity'] as number,
+            1,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.vertexAttribDivisor(this.Locations_segmentShowing['a_velocity'] as number, 1)
+        gl.bindVertexArray(null)
+
+
     }
 
     async programInit_historyShowing(gl: WebGL2RenderingContext) {
@@ -615,6 +762,8 @@ class FlowLayer {
         return velocityData
     }
 
+
+
     printBuffer(gl: WebGL2RenderingContext, buffer: WebGLBuffer, size: number, label: string = '') {
         ////// debug
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
@@ -623,33 +772,48 @@ class FlowLayer {
         console.log(`${label}`, debugArr)
         gl.bindBuffer(gl.ARRAY_BUFFER, null)
     }
-    xfSwap() {
-        let tempxfo = this.xfo_simulate_1
-        this.xfo_simulate_1 = this.xfo_simulate_2
-        this.xfo_simulate_2 = tempxfo
+    xfSwap(count: number) {
 
-        let tempVao = this.vao_simulate_1
-        this.vao_simulate_1 = this.vao_simulate_2
-        this.vao_simulate_2 = tempVao
+        if (count % 2 == 1) {
+            this.nowXFVAO_simu = this.vao_simulate_1 // xf input 
+            this.nowXFO_simu = this.xfo_simulate_1 // xfo , out to ppos2 , velocity2
+            this.nowSegRenderVAO = this.vao_segmentShowing1 // render using ppos2 , velocity2
 
-        // gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 0, this.pposBuffer_simulate_2)
-        // gl.bindBufferBase(gl.TRANSFORM_FEEDBACK_BUFFER, 1, this.velocityBuffer2)
+            this.nowRenderFBO =  this.fbo_historyShowing_1 // render target ==> trajectoryTexture_1
+            this.nowHistoryTrajectoryTexture = this.trajectoryTexture_2 // render history texture ==> trajectoryTexture_2
 
-        let tempBuffer4pos = this.pposBuffer_simulate_2
-        this.pposBuffer_simulate_2 = this.pposBuffer_simulate_1
-        this.pposBuffer_simulate_1 = tempBuffer4pos
+        } else {
+            this.nowXFVAO_simu = this.vao_simulate_2 // xf input 
+            this.nowXFO_simu = this.xfo_simulate_2 // xfo , out to ppos1 , velocity1
+            this.nowSegRenderVAO = this.vao_segmentShowing2 // render using ppos1 , velocity1
 
-        let tempBuffer4Velocity = this.velocityBuffer2
-        this.velocityBuffer2 = this.velocityBuffer1
-        this.velocityBuffer1 = tempBuffer4Velocity
+            this.nowRenderFBO =  this.fbo_historyShowing_2 // render target ==> trajectoryTexture_2
+            this.nowHistoryTrajectoryTexture = this.trajectoryTexture_1 // render history texture ==> trajectoryTexture_1
 
-        let tempFBOshowing = this.fbo_historyShowing_1
-        this.fbo_historyShowing_1 = this.fbo_historyShowing_2
-        this.fbo_historyShowing_2 = tempFBOshowing
+        }
+        // let tempxfo = this.xfo_simulate_1
+        // this.xfo_simulate_1 = this.xfo_simulate_2
+        // this.xfo_simulate_2 = tempxfo
 
-        let tempTextureshowing = this.trajectoryTexture_1
-        this.trajectoryTexture_1 = this.trajectoryTexture_2
-        this.trajectoryTexture_2 = tempTextureshowing
+        // let tempVao = this.vao_simulate_1
+        // this.vao_simulate_1 = this.vao_simulate_2
+        // this.vao_simulate_2 = tempVao
+
+        // let tempBuffer4pos = this.pposBuffer_simulate_2
+        // this.pposBuffer_simulate_2 = this.pposBuffer_simulate_1
+        // this.pposBuffer_simulate_1 = tempBuffer4pos
+
+        // let tempBuffer4Velocity = this.velocityBuffer2
+        // this.velocityBuffer2 = this.velocityBuffer1
+        // this.velocityBuffer1 = tempBuffer4Velocity
+
+        // let tempFBOshowing = this.fbo_historyShowing_1
+        // this.fbo_historyShowing_1 = this.fbo_historyShowing_2
+        // this.fbo_historyShowing_2 = tempFBOshowing
+
+        // let tempTextureshowing = this.trajectoryTexture_1
+        // this.trajectoryTexture_1 = this.trajectoryTexture_2
+        // this.trajectoryTexture_2 = tempTextureshowing
 
     }
 

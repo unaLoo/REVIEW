@@ -2,7 +2,12 @@
 precision highp float;
 
 in float velocity;
+in float opacity;
 uniform float maxSpeed;
+uniform float aaWidth;
+uniform float fillWidth;
+
+const float PI = 3.14159265359f;
 
 out vec4 fragColor;
 
@@ -16,8 +21,16 @@ vec3 getColor(float v) {
     return mix(color[floorIndex], color[ceilIndex], interval);
 }
 
+float getAlpha(float param) {
+    if(aaWidth == 0.0f) {
+        return 1.0f;
+    } else {
+        return 1.0f - sin(clamp((param * (0.5f * fillWidth + aaWidth) - 0.5f * fillWidth) / aaWidth, 0.0f, 1.0f) * 2.0f / PI);
+    }
+}
+
 void main() {
-    float alpha = 0.9f;
+    float alpha = getAlpha(opacity);
     vec3 color = getColor(velocity);
     fragColor = vec4(color, 1.0f) * alpha;
     // fragColor = vec4(1.0,0.0,0.0,1.0);

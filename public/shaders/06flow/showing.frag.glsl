@@ -29,8 +29,8 @@ vec3 getColor(vec2 velocity) {
     float roundedValue = round(factor * 10.0f) / 10.0f; 
     return mix(color[indexFloor], color[indexCeil], factor);
     // return mix(color[indexFloor], color[indexCeil], roundedValue);
-
 }
+
 
 void main() {
     float alpha = 0.8f;

@@ -68,7 +68,7 @@ class FlowLayer {
     nowXFVAO_simu: WebGLVertexArrayObject | null = null
     nowXFO_simu: WebGLTransformFeedback | null = null
     nowSegRenderVAO: WebGLVertexArrayObject | null = null
-    nowRenderFBO:WebGLFramebuffer | null = null
+    nowRenderFBO: WebGLFramebuffer | null = null
     nowHistoryTrajectoryTexture: WebGLTexture | null = null
 
 
@@ -206,6 +206,66 @@ class FlowLayer {
     render(gl: WebGL2RenderingContext, matrix: Array<number>) {
         if (this.ready) {
 
+            let mapCenterInMercator = mapbox.MercatorCoordinate.fromLngLat(this.map!.getCenter())
+            let mercatorCenterOffsetMatrix = [
+                1, 0, 0, mapCenterInMercator.x,
+                0, 1, 0, mapCenterInMercator.y,
+                0, 0, 1, 0,
+                0, 0, 0, 1
+                // 1, 0, 0, 0,
+                // 0, 1, 0, 0,
+                // 0, 0, 1, 0,
+                // 0,0,0,1
+            ]
+            let centerXdecode = util.encodeFloatToDouble(mapCenterInMercator.x)
+            let centerYdecode = util.encodeFloatToDouble(mapCenterInMercator.y)
+
+            ///// debug
+            let pos_high = []
+            function translateToRelative(pos_high:number[], pos_low:number[], u_centerHigh:number[], u_centerLow:number[]) {
+                if (
+                    pos_high.length !== 2 || pos_low.length !== 2 ||
+                    u_centerHigh.length !== 2 || u_centerLow.length !== 2
+                ) {
+                    throw new Error("All input parameters must be arrays of length 2.");
+                }
+            
+                // 计算高位和低位的差值
+                let highDiff = [
+                    pos_high[0] - u_centerHigh[0],
+                    pos_high[1] - u_centerHigh[1]
+                ];
+            
+                let lowDiff = [
+                    pos_low[0] - u_centerLow[0],
+                    pos_low[1] - u_centerLow[1]
+                ];
+            
+                // 返回相对坐标
+                return [
+                    highDiff[0] + lowDiff[0],
+                    highDiff[1] + lowDiff[1]
+                ];
+            }
+            
+
+            const testCenterPos = [0.8347439248338836, 0.405535903980856, 0.0, 1.0]
+            const testPointPos = [0.1, 0.1, 0.0, 1.0]
+
+            console.log(mercatorCenterOffsetMatrix)
+            let res = multiplyMatrixByVec4(mercatorCenterOffsetMatrix, testPointPos)
+            // res[0]/=res[3]
+            // res[1]/=res[3]
+            // res[2]/=res[3]
+            // res[3] = 1.0
+            console.log(res)
+            // console.log('11111111111')
+            // console.log(this.map!.transform.mercatorMatrix)
+            // console.log(matrix)
+            // const translateToRelative = ()=>{
+
+            // }
+
             ////////// update dynamic data
             this.frames += 1
             this.nowFrame = (this.nowFrame + 1) % this.totalTime
@@ -316,6 +376,10 @@ class FlowLayer {
                 // ////// 4.2 ::: the segment showing program  ///// single segment SHOWING  like particle
                 gl.useProgram(this.program_segmentShowing!)
                 gl.uniformMatrix4fv(this.Locations_segmentShowing['u_matrix'], false, matrix)
+                gl.uniformMatrix4fv(this.Locations_segmentShowing['u_centerOffsetMatrix'], false, mercatorCenterOffsetMatrix)
+                gl.uniform2f(this.Locations_segmentShowing['u_centerHigh'], centerXdecode[0], centerYdecode[0])
+                gl.uniform2f(this.Locations_segmentShowing['u_centerLow'], centerXdecode[1], centerYdecode[1])
+
                 gl.uniform1f(this.Locations_segmentShowing['maxSpeed'], this.flowMaxVelocity)
                 gl.uniform2f(this.Locations_segmentShowing['u_canvasSize'], gl.canvas.width, gl.canvas.height)
                 gl.uniform1f(this.Locations_segmentShowing['aaWidth'] as WebGLUniformLocation, this.aaWidth)
@@ -625,10 +689,15 @@ class FlowLayer {
         this.Locations_segmentShowing['a_positionInfo'] = gl.getAttribLocation(this.program_segmentShowing, 'a_positionInfo')
         this.Locations_segmentShowing['a_velocity'] = gl.getAttribLocation(this.program_segmentShowing, 'a_velocity')
         this.Locations_segmentShowing['u_matrix'] = gl.getUniformLocation(this.program_segmentShowing, 'u_matrix')
+        this.Locations_segmentShowing['u_centerOffsetMatrix'] = gl.getUniformLocation(this.program_segmentShowing, 'u_centerOffsetMatrix')
+        this.Locations_segmentShowing['u_centerHigh'] = gl.getUniformLocation(this.program_segmentShowing, 'u_centerHigh')
+        this.Locations_segmentShowing['u_centerLow'] = gl.getUniformLocation(this.program_segmentShowing, 'u_centerLow')
+
         this.Locations_segmentShowing['maxSpeed'] = gl.getUniformLocation(this.program_segmentShowing, 'maxSpeed')
         this.Locations_segmentShowing['u_canvasSize'] = gl.getUniformLocation(this.program_segmentShowing, 'u_canvasSize')
         this.Locations_segmentShowing['aaWidth'] = gl.getUniformLocation(this.program_segmentShowing, 'aaWidth')
         this.Locations_segmentShowing['fillWidth'] = gl.getUniformLocation(this.program_segmentShowing, 'fillWidth')
+
 
         console.log(this.Locations_segmentShowing);
 
@@ -779,7 +848,7 @@ class FlowLayer {
             this.nowXFO_simu = this.xfo_simulate_1 // xfo , out to ppos2 , velocity2
             this.nowSegRenderVAO = this.vao_segmentShowing1 // render using ppos2 , velocity2
 
-            this.nowRenderFBO =  this.fbo_historyShowing_1 // render target ==> trajectoryTexture_1
+            this.nowRenderFBO = this.fbo_historyShowing_1 // render target ==> trajectoryTexture_1
             this.nowHistoryTrajectoryTexture = this.trajectoryTexture_2 // render history texture ==> trajectoryTexture_2
 
         } else {
@@ -787,7 +856,7 @@ class FlowLayer {
             this.nowXFO_simu = this.xfo_simulate_2 // xfo , out to ppos1 , velocity1
             this.nowSegRenderVAO = this.vao_segmentShowing2 // render using ppos1 , velocity1
 
-            this.nowRenderFBO =  this.fbo_historyShowing_2 // render target ==> trajectoryTexture_2
+            this.nowRenderFBO = this.fbo_historyShowing_2 // render target ==> trajectoryTexture_2
             this.nowHistoryTrajectoryTexture = this.trajectoryTexture_1 // render history texture ==> trajectoryTexture_1
 
         }
@@ -874,11 +943,25 @@ function lnglat2Mercator(lng: number, lat: number) {
 }
 
 
-
-
-
 function getMapExtent(map: mapbox.Map) {
     const bounds = map.getBounds()
     const boundsArray = bounds.toArray()
     return [boundsArray[0][0], boundsArray[0][1], boundsArray[1][0], boundsArray[1][1]]
 }
+
+
+function multiplyMatrixByVec4(matrix: Array<number>, vec4: Array<number>) {
+    // 矩阵乘法结果初始化为0
+    var result = [0, 0, 0, 0];
+
+    // 遍历结果向量的每个元素
+    for (var i = 0; i < 4; i++) {
+        // 对于每个结果元素，执行矩阵的一行与向量的点积
+        for (var j = 0; j < 4; j++) {
+            result[i] += matrix[i * 4 + j] * vec4[j];
+        }
+    }
+
+    return result;
+}
+

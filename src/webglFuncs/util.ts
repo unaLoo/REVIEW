@@ -129,6 +129,15 @@ export function createCanvasSizeTexture(gl: WebGL2RenderingContext) {
     return texture
 }
 
+export function encodeFloatToDouble(value: number) {
+
+    const result = new Float32Array(2);
+    result[0] = value;
+
+    const delta = value - result[0];
+    result[1] = delta;
+    return result;
+}
 
 
 
@@ -212,7 +221,7 @@ export class M4 {
     }
 
     mutiply(b: any, a: any): M4 {
-
+        // b * a
         var b00 = b[0 * 4 + 0];
         var b01 = b[0 * 4 + 1];
         var b02 = b[0 * 4 + 2];
@@ -246,7 +255,7 @@ export class M4 {
         var a32 = a[3 * 4 + 2];
         var a33 = a[3 * 4 + 3];
 
-        // 线代上的 B * A 
+        // 线代上的 B * A  ， B 左乘 A
         return new M4([
             b00 * a00 + b01 * a10 + b02 * a20 + b03 * a30,//b一行 * a一列
             b00 * a01 + b01 * a11 + b02 * a21 + b03 * a31,
@@ -274,7 +283,7 @@ export class M4 {
             0, 0, 1, 0,
             x, y, z, 1
         ])
-        return this.mutiply(transMat.value, this.value)
+        return this.mutiply(transMat.value, this.value) //一定是变换矩阵左乘原矩阵
     }
 
     scale(x: number, y: number, z: number): M4 {

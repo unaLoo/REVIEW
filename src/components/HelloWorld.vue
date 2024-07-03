@@ -37,29 +37,21 @@ onMounted(() => {
   align-items: center;
   background-color: rgb(63, 63, 63);
 
-  #playground {
-    position: relative;
-    width: 90%;
-    height: 90%;
-    background-color: gray;
-    z-index: 1;
-  }
+  // #playground {
+  //   position: relative;
+  //   width: 90%;
+  //   height: 90%;
+  //   background-color: gray;
+  //   z-index: 1;
+  // }
 
   #map {
     position: absolute;
     width: 100%;
     height: 100%;
-    z-index: 2;
+    z-index: 0;
     background-color: transparent;
   }
 
-}
-
-#ui {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 999;
-  background-color: rgba($color: #eb8e8e, $alpha: 0.6);
 }
 </style>

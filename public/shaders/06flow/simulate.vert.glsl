@@ -41,12 +41,22 @@ float rand(vec2 co) {
     float t = dot(rand_constants.xy, co);
     return abs(fract(sin(t) * (rand_constants.z + t)));
 }
+
+bool validExtent(vec4 rect1, vec4 rect2) {
+    // rect：(xmin,ymin,xmax,ymax)
+    if(rect1.x >= rect2.z || rect1.z <= rect2.x || rect1.y >= rect2.w || rect1.w <= rect2.y) {
+        return false;
+    }
+    return true;
+}
+
 vec4 currentExtent() {
     float lonMin = max(flowExtent.x, mapExtent.x);
     float latMin = max(flowExtent.y, mapExtent.y);
     float lonMax = min(flowExtent.z, mapExtent.z);
     float latMax = min(flowExtent.w, mapExtent.w);
     return vec4(lonMin, latMin, lonMax, latMax);
+    // return flowExtent;
 }
 float drop(vec2 velocity, vec2 seed) {
     float speedRate = length(velocity) / maxSpeed;
@@ -69,6 +79,14 @@ vec2 calculateDisplacedLonLat(float lon, float lat, float offsetX, float offsetY
     return vec2(newLon, newLat);
 }
 
+vec4 getRebirthPos(vec2 nowPos, vec4 cExtent) {
+    vec2 seed = randomSeed * nowPos;
+    vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
+    float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
+    float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
+    return vec4(x, y, x, y);
+}
+
 bool validExtentCheck(vec2 pos, vec4 extent) {
     if(pos.x <= extent.x || pos.x >= extent.z || pos.y <= extent.y || pos.y >= extent.w) {
         return false;
@@ -82,28 +100,23 @@ vec2 getVelocity(vec2 uv) {
     vec2 uvSpeed = texture(uvTexture, uvCorrected).rg;
     return uvSpeed;
     // float speed = mix(0.0f, maxSpeed, length(uvSpeed));
-    // return speed * speedFactor;
 }
 
 void main() {
 
     vec4 cExtent = currentExtent();
-    int particleIndex = gl_VertexID;
-
-    // if(cExtent.z <= cExtent.x || cExtent.w <= cExtent.y || particleIndex >= particleNum) {
-    //     return;
-    // }
-
     vec2 nowPos = a_particleInfo.zw;
-    // float nowSpeed = a_velocity + 0.1f;
-    vec2 seed = randomSeed * nowPos;
 
-    // // first time must rebirth
+    // Bounding box check
+    if(!validExtent(flowExtent, mapExtent)) {
+        out_particleInfo = getRebirthPos(nowPos, flowExtent);
+        out_verlocity = 0.0f;
+        return;
+    }
+
+    // Particle now postion check
     if(!validExtentCheck(nowPos, cExtent)) {
-        vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
-        float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
-        float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
-        out_particleInfo = vec4(x, y, x, y);// rebirth to lng lat
+        out_particleInfo = getRebirthPos(nowPos, cExtent);
         out_verlocity = 0.0f;
         return;
     }
@@ -112,17 +125,13 @@ void main() {
     vec4 posinCS = u_matrix * vec4(mercatorPos, 0.0f, 1.0f);
     vec2 posInSS = posinCS.xy / posinCS.w;
     vec2 uv = (posInSS + 1.0f) / 2.0f;
-    uv = vec2(uv.x, uv.y);
     vec2 uvSpeed = getVelocity(uv);
-    vec2 newPos = calculateDisplacedLonLat(nowPos.x, nowPos.y, uvSpeed.x * internalFactor, uvSpeed.y * internalFactor);
+    vec2 newPos = calculateDisplacedLonLat(nowPos.x, nowPos.y, uvSpeed.x * speedFactor, uvSpeed.y * speedFactor);
     newPos = clamp(newPos, cExtent.xy, cExtent.zw);
 
+    vec2 seed = randomSeed * nowPos;
     if(drop(uvSpeed, seed) == 1.0f || all(lessThan(abs(uvSpeed), vec2(0.001f))) || !validExtentCheck(newPos, cExtent)) {
-        // drop OR uv < 0.001f OR out of extent
-        vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
-        float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
-        float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
-        out_particleInfo = vec4(x, y, x, y);// rebirth to lng lat
+        out_particleInfo = getRebirthPos(nowPos, cExtent);
         out_verlocity = 0.0f;
     } else {
         out_particleInfo = vec4(nowPos.x, nowPos.y, newPos.x, newPos.y);

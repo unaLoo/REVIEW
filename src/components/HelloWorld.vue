@@ -5,14 +5,15 @@ import { onMounted } from 'vue'
 // import { main, main3d } from '../exps/03transform/main'
 // import { initMap } from '../exps/04polygon/main'
 // import { main } from '../exps/05XFBO/main'
-// import { initMap } from '../exps/06flow/main'
-import { main } from '../exps/培训案例/pulsing';
+import { initMap } from '../exps/06flow/main'
+// import { main } from '../exps/培训案例/pulsing';
 
 
 onMounted(() => {
-  // initMap()
+  initMap()
   // instansDraw()
-  main()
+  // main()
+  // prepare()
 })
 
 </script>

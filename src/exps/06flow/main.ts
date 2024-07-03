@@ -95,6 +95,7 @@ class FlowLayer {
     nowFrame = 0
     progressRatio = 0
     mapExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
+    uvResourcePointer:number = 1
 
     constructor(id: string) {
         this.id = id

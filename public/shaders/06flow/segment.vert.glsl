@@ -67,7 +67,10 @@ void main() {
     vec4 basePositionSS = gl_VertexID / 2 == 0 ? currentNodeSS : nextNodeSS;
     vec2 offsetedPositionSS = basePositionSS.xy + offsetVector.xy * ssOffset / u_canvasSize;
 
-    vec4 offsetedPositionCS = vec4(offsetedPositionSS, 0.0f, 1.0f) * basePositionSS.w;
+    float w = gl_VertexID / 2 == 0 ? currentNodeCS.w : nextNodeCS.w;
+
+    // vec4 offsetedPositionCS = vec4(offsetedPositionSS, 0.0f, 1.0f) * basePositionSS.w;
+    vec4 offsetedPositionCS = vec4(offsetedPositionSS, 0.0f, 1.0f) * w;// ????
     gl_Position = offsetedPositionCS;
     velocity = a_velocity;
     opacity = abs(2.0f * float(parity) - 1.0f); // 0,1 ==> -1,1

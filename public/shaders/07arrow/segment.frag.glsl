@@ -5,6 +5,7 @@ in float opacity;
 
 uniform float aaWidth;
 uniform float fillWidth;
+uniform vec3 u_arrowColor;
 
 const float PI = 3.14159265359f;
 
@@ -19,6 +20,8 @@ float getAlpha(float param) {
 }
 void main() {
     float alpha = getAlpha(opacity);
-    alpha = 1.0f;
-    fragColor = vec4(0.1f, 0.1f, 0.1f, 1.0f) * alpha;
+    // alpha = 1.0f;
+    fragColor = vec4(u_arrowColor, 1.0f) * alpha;
+    // fragColor = vec4(0.27f, 0.27f, 0.27f, 1.0f);
+
 }

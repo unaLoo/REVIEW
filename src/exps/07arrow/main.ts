@@ -5,13 +5,13 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import { Delaunay } from 'd3-delaunay'
 import * as dat from 'dat.gui'
 
-class EulerFlowLayer {
+export class EulerFlowLayer {
     id: string = ''
     type: string = 'custom'
     ready: boolean = false
     map: mapbox.Map | null = null
     gui: dat.GUI | null = null
-
+    gl: WebGL2RenderingContext | null = null
 
 
     programe_delaunay: WebGLProgram | null = null
@@ -73,17 +73,19 @@ class EulerFlowLayer {
     vao_segmentShowing2: WebGLVertexArrayObject | null = null
 
 
+    program_arrowShowing: WebGLProgram | null = null
+    Locations_arrowShowing: { [name: string]: number | WebGLUniformLocation | null } = {}
+    vao_arrowShowing: WebGLVertexArrayObject | null = null
+    arrowAngle: number = 30
+    arrowLength: number = 10
 
 
     /// static data
     flowExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
     flowMaxVelocity: number = 0
-    particelNum: number = 65536
-    dropRate: number = 0.003
-    dropRateBump: number = 0.001
-    velocityFactor: number = 1000.0
-    fadeFactor: number = 0.97
-    aaWidth: number = 1.0
+
+    velocityFactor: number = 800.0
+    aaWidth: number = 2.0
     fillWidth: number = 0.5
 
     /// dynamic data
@@ -95,21 +97,21 @@ class EulerFlowLayer {
     mapExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
 
     validExtent: number[] = []
-    gridNumPerRow: number = 100
-    gridNumPerCol: number = 50
+    gridNumPerRow: number = 50
+    gridNumPerCol: number = 30
+    arrowColor: number[] = [0.31, 0.31, 0.31]
 
     constructor(id: string) {
         this.id = id
     }
 
     async onAdd(map: mapbox.Map, gl: WebGL2RenderingContext) {
-
         this.initGUI()
         const available_extensions = gl.getSupportedExtensions();
         available_extensions?.forEach(ext => {
             gl.getExtension(ext)
         })
-
+        this.gl = gl
 
         this.map = map
         await this.programInit_delaunay(gl)
@@ -122,6 +124,7 @@ class EulerFlowLayer {
 
         await this.programInit_segmentShowing(gl)
 
+        await this.programInit_arrowShowing(gl)
 
         const idle = () => {
             // need to regenerate point data
@@ -143,18 +146,13 @@ class EulerFlowLayer {
         }
 
         const restart = () => {
-
             let data = this.generateGrid(this.validExtent, this.gridNumPerRow, this.gridNumPerCol)
             this.pointNum = data.gridDataArray.length / 2
-
             gl.bindBuffer(gl.ARRAY_BUFFER, this.startPosBuffer)
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data.gridDataArray), gl.DYNAMIC_DRAW)
-
             gl.bindBuffer(gl.ARRAY_BUFFER, this.endPosBuffer)
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data.gridDataArray), gl.DYNAMIC_DRAW)
-
             gl.bindBuffer(gl.ARRAY_BUFFER, null)
-
         }
 
         this.map.on('movestart', idle)
@@ -165,7 +163,11 @@ class EulerFlowLayer {
         this.map.on('dragend', restart)
         this.map.on('zoomstart', idle)
         this.map.on('zoom', idle)
-        this.map.on('zoomend', restart)
+        this.map.on('zoomend', () => {
+            // let res = this.getSpeedFactorInNowZoom()
+            // this.velocityFactor = res
+            restart()
+        })
         this.map.on('rotatestart', idle)
         this.map.on('rotate', idle)
         this.map.on('rotateend', restart)
@@ -173,16 +175,14 @@ class EulerFlowLayer {
         this.map.on('pitch', idle)
         this.map.on('pitchend', restart)
 
-
-
-
-
-
         this.ready = true
 
         window.addEventListener('keydown', (e) => {
             if (e.key == 'r') {
                 this.printBuffer(gl, this.startPosBuffer!, this.pointNum * 2);
+            }
+            else if (e.key == 't') {
+                this.printBuffer(gl, this.endPosBuffer!, this.pointNum * 2);
             }
         })
 
@@ -199,17 +199,11 @@ class EulerFlowLayer {
             this.mapExtent = getMapExtent(this.map!)
             this.randomSeed = Math.random()
 
-            /// ensure particle num not descrease
-            // this.validExtentCheck(gl)
-
             if (this.localFrames === 0) {
                 this.nextStep(gl)
             }
 
             ////////// 1st::: delaunay program to get uv texture
-            // this.xfSwap(this.globalFrames)
-
-
             gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_delaunay)
 
             gl.useProgram(this.programe_delaunay!)
@@ -227,7 +221,6 @@ class EulerFlowLayer {
 
 
             ////////// 2nd::: show uvTexture program  ///// background SHOWING
-
             gl.useProgram(this.program_showing!)
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
             gl.activeTexture(gl.TEXTURE0)
@@ -282,8 +275,24 @@ class EulerFlowLayer {
             gl.uniform2f(this.Locations_segmentShowing['u_screenSize'], gl.canvas.width, gl.canvas.height)
             gl.uniform1f(this.Locations_segmentShowing['aaWidth'], this.aaWidth)
             gl.uniform1f(this.Locations_segmentShowing['fillWidth'], this.fillWidth)
+            gl.uniform3f(this.Locations_segmentShowing['u_arrowColor'], this.arrowColor[0], this.arrowColor[1], this.arrowColor[2])
 
             gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.pointNum)
+
+            ////////// 6th::: arrow showing program  ///// arrow SHOWING
+            gl.useProgram(this.program_arrowShowing!)
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+
+            gl.bindVertexArray(this.vao_arrowShowing)
+            gl.uniformMatrix4fv(this.Locations_arrowShowing['u_matrix'] as WebGLUniformLocation, false, matrix)
+            gl.uniformMatrix2fv(this.Locations_arrowShowing['u_rotateMatrix'], false, util.M2.rotateMat(this.arrowAngle).value)
+            gl.uniform1f(this.Locations_arrowShowing['u_arrowLength'], this.arrowLength)
+            gl.uniform2f(this.Locations_arrowShowing['u_canvasSize'], gl.canvas.width, gl.canvas.height)
+            gl.uniform3f(this.Locations_arrowShowing['u_arrowColor'], this.arrowColor[0], this.arrowColor[1], this.arrowColor[2])
+
+            gl.drawArraysInstanced(gl.LINES, 0, 4, this.pointNum)
+
+
 
 
 
@@ -541,6 +550,8 @@ class EulerFlowLayer {
         this.Locations_segmentShowing['u_screenSize'] = gl.getUniformLocation(this.program_segmentShowing, 'u_screenSize')
         this.Locations_segmentShowing['aaWidth'] = gl.getUniformLocation(this.program_segmentShowing, 'aaWidth')
         this.Locations_segmentShowing['fillWidth'] = gl.getUniformLocation(this.program_segmentShowing, 'fillWidth')
+        this.Locations_segmentShowing['u_arrowColor'] = gl.getUniformLocation(this.program_segmentShowing, 'u_arrowColor')
+        
 
         console.log(this.Locations_segmentShowing)
 
@@ -572,8 +583,50 @@ class EulerFlowLayer {
 
     }
 
+    async programInit_arrowShowing(gl: WebGL2RenderingContext) {
+        const vss = (await axios.get('/shaders/07arrow/arrow.vert.glsl'))
+        const fss = (await axios.get('/shaders/07arrow/arrow.frag.glsl'))
+        const vs = util.createShader(gl, gl.VERTEX_SHADER, vss.data)!
+        const fs = util.createShader(gl, gl.FRAGMENT_SHADER, fss.data)!
+        this.program_arrowShowing = util.createProgram(gl, vs, fs)!
 
+        this.Locations_arrowShowing['startPos'] = gl.getAttribLocation(this.program_arrowShowing, 'startPos')
+        this.Locations_arrowShowing['endPos'] = gl.getAttribLocation(this.program_arrowShowing, 'endPos')
 
+        this.Locations_arrowShowing['u_matrix'] = gl.getUniformLocation(this.program_arrowShowing, 'u_matrix')
+        this.Locations_arrowShowing['u_rotateMatrix'] = gl.getUniformLocation(this.program_arrowShowing, 'u_rotateMatrix')
+        this.Locations_arrowShowing['u_arrowLength'] = gl.getUniformLocation(this.program_arrowShowing, 'u_arrowLength')
+        this.Locations_arrowShowing['u_canvasSize'] = gl.getUniformLocation(this.program_arrowShowing, 'u_canvasSize')
+        this.Locations_arrowShowing['u_arrowColor'] = gl.getUniformLocation(this.program_arrowShowing, 'u_arrowColor')
+
+        console.log(this.Locations_arrowShowing)
+
+        this.vao_arrowShowing = gl.createVertexArray()!
+        gl.bindVertexArray(this.vao_arrowShowing)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.startPosBuffer)
+        gl.enableVertexAttribArray(this.Locations_arrowShowing['startPos'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_arrowShowing['startPos'] as number,
+            2,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.vertexAttribDivisor(this.Locations_arrowShowing['startPos'] as number, 1)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.endPosBuffer)
+        gl.enableVertexAttribArray(this.Locations_arrowShowing['endPos'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_arrowShowing['endPos'] as number,
+            2,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.vertexAttribDivisor(this.Locations_arrowShowing['endPos'] as number, 1)
+        gl.bindVertexArray(null)
+    }
 
     async getStationData(url: string) {
         let vertexData
@@ -631,25 +684,42 @@ class EulerFlowLayer {
     }
 
     initGUI() {
+
+        const restart = () => {
+            let gl = this.gl!
+            let data = this.generateGrid(this.validExtent, this.gridNumPerRow, this.gridNumPerCol)
+            this.pointNum = data.gridDataArray.length / 2
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.startPosBuffer)
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data.gridDataArray), gl.DYNAMIC_DRAW)
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.endPosBuffer)
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data.gridDataArray), gl.DYNAMIC_DRAW)
+            gl.bindBuffer(gl.ARRAY_BUFFER, null)
+        }
+
         this.gui = new dat.GUI()
-        // let parameters = {
-        //     particleNum: this.particelNum,
-        //     velocityFactor: this.velocityFactor,
-        //     fadeFactor: this.fadeFactor,
-        //     aaWidth: this.aaWidth,
-        //     fillWidth: this.fillWidth,
-        //     framePerStep: this.framePerStep,
-        // }
-        // this.gui.domElement.style.position = 'absolute'
-        // this.gui.domElement.style.top = '2vh'
-        // this.gui.domElement.style.right = '10vw'
-        // this.gui.add(parameters, 'particleNum', 0, 65536).onChange(value => this.particelNum = value)
-        // this.gui.add(parameters, 'velocityFactor', 1, 50, 1).onChange(value => this.velocityFactor = value)
-        // this.gui.add(parameters, 'fadeFactor', 0.8, 1.0, 0.01).onChange(value => this.fadeFactor = value)
-        // this.gui.add(parameters, 'aaWidth', 0, 5, 0.1).onChange(value => this.aaWidth = value)
-        // this.gui.add(parameters, 'fillWidth', 0, 5, 0.1).onChange(value => this.fillWidth = value)
-        // this.gui.add(parameters, 'framePerStep', 30, 240, 10).onChange(value => this.framePerStep = value)
-        // this.gui.open()
+        let parameters = {
+            aaWidth: this.aaWidth,
+            fillWidth: this.fillWidth,
+            framePerStep: this.framePerStep,
+            velocityFactor: this.velocityFactor,
+            arrowAngle: this.arrowAngle,
+            arrowLength: this.arrowLength,
+            gridPerRow: this.gridNumPerRow,
+            gridPerCol: this.gridNumPerCol,
+        }
+        this.gui.domElement.style.position = 'absolute'
+        this.gui.domElement.style.top = '2vh'
+        this.gui.domElement.style.right = '10vw'
+        this.gui.add(parameters, 'aaWidth', 0, 5, 0.1).onChange(value => this.aaWidth = value)
+        this.gui.add(parameters, 'fillWidth', 0, 5, 0.1).onChange(value => this.fillWidth = value)
+        this.gui.add(parameters, 'framePerStep', 30, 240, 10).onChange(value => this.framePerStep = value)
+        this.gui.add(parameters, 'velocityFactor', 1, 1000, 1).onChange(value => this.velocityFactor = value)
+        this.gui.add(parameters, 'arrowAngle', 0, 90, 1).onChange(value => this.arrowAngle = value)
+        this.gui.add(parameters, 'arrowLength', 1, 30, 1).onChange(value => this.arrowLength = value)
+        this.gui.add(parameters, 'gridPerCol', 10, 200, 1).onChange(value => { this.gridNumPerCol = value; restart() })
+        this.gui.add(parameters, 'gridPerRow', 10, 200, 1).onChange(value => { this.gridNumPerRow = value; restart() })
+
+        this.gui.open()
     }
 
     printBuffer(gl: WebGL2RenderingContext, buffer: WebGLBuffer, size: number, label: string = '') {
@@ -677,13 +747,30 @@ class EulerFlowLayer {
                 gridDataArray.push(x, y)
             }
         }
-
-        console.log('new grid data!  length::', gridDataArray.length / 2)
-
+        // console.log('new grid data!  length::', gridDataArray.length / 2)
         return {
             gridDataArray,
         }
+    }
 
+    getSpeedFactorInNowZoom() {
+        let zoom = this.map!.getZoom()
+        if (zoom <= 10) return 800;
+        if (zoom >= 16) return 15;
+        const data = [
+            { zoom: 10, speedFactor: 1000 },
+            { zoom: 12, speedFactor: 350 },
+            { zoom: 14, speedFactor: 70 },
+            { zoom: 16, speedFactor: 15 }
+        ];
+        for (let i = 0; i < data.length - 1; i++) {
+            if (zoom >= data[i].zoom && zoom <= data[i + 1].zoom) {
+                const { zoom: x0, speedFactor: y0 } = data[i];
+                const { zoom: x1, speedFactor: y1 } = data[i + 1];
+                return Math.floor(y0 + (zoom - x0) * (y1 - y0) / (x1 - x0));
+            }
+        }
+        return 0;
     }
 }
 function getMapExtent(map: mapbox.Map) {
@@ -707,9 +794,8 @@ export const initMap = () => {
         console.log('map load!')
         const flowTextureLayer = new EulerFlowLayer('flow')
         map.addLayer(flowTextureLayer as mapbox.AnyLayer)
-
-
     })
+    return map;
 }
 
 export const simpleArrow = async () => {
@@ -725,7 +811,7 @@ export const simpleArrow = async () => {
     precision highp float;
     out vec4 fragColor;
     void main() {
-        fragColor = vec4(0.3f, 0.5f, 0.9f, 1.0f);
+        fragColor = vec4(1.0f, 1.0f, 0.9f, 1.0f);
     }`
     const vs = util.createShader(gl, gl.VERTEX_SHADER, vss)!
     const fs = util.createShader(gl, gl.FRAGMENT_SHADER, fss)!
@@ -752,6 +838,9 @@ export const simpleArrow = async () => {
         arrowLength: 50,
     }
     const gui = new dat.GUI()
+    gui.domElement.style.position = 'absolute'
+    gui.domElement.style.top = '30vh'
+    gui.domElement.style.right = '42vw'
     gui.add(param, 'rotateAngle', 0, 90, 1).onChange(value => { rotateAngle = value })
     gui.add(param, 'arrowLength', 50, 200, 1).onChange(value => { arrowLength = value })
 

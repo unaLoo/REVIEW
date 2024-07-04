@@ -28,10 +28,6 @@ class FlowLayer {
     particleRandomInitData: number[] = []
     velocityEmptyInitData: number[] = []
 
-    // test 
-    vao_delaunayArray: [WebGLVertexArrayObject, WebGLVertexArrayObject, WebGLVertexArrayObject] | null = null
-
-
     vao_delaunay: WebGLVertexArrayObject | null = null
     stationBuffer: WebGLBuffer | null = null
     stationIndexBuffer: WebGLBuffer | null = null
@@ -1018,10 +1014,6 @@ export const initMap = () => {
 
 
     })
-
-
-
-
 }
 
 

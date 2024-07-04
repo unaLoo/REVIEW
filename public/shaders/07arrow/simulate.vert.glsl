@@ -1,30 +1,21 @@
 #version 300 es
 
-in vec4 a_particleInfo;//(x1,y1, x2,y2)
-// in float a_velocity;// v_to
+in vec2 a_startPos;//(x,y)
 
 // global uniform
 uniform vec4 mapExtent;
 uniform vec4 flowExtent;
 uniform mat4 u_matrix;
 
-// status 
-uniform float maxSpeed;
-uniform float randomSeed;
 
-// particle control
-uniform int particleNum;
-uniform float dropRate;
-uniform float dropRateBump;
 uniform float speedFactor;
 
 uniform sampler2D uvTexture;
 
-out vec4 out_particleInfo;//(x1,y1, x2,y2)
+out vec2 out_endPos;//(x1,y1, x2,y2)
 
 const float PI = 3.14159265359f;
 const float EARTH_RADIUS = 6371000.0f;
-const float internalFactor = 10.0f;
 
 /// tool func
 vec2 lnglat2Mercator(float lng, float lat) {
@@ -57,12 +48,6 @@ vec4 currentExtent() {
     return vec4(lonMin, latMin, lonMax, latMax);
     // return flowExtent;
 }
-float drop(vec2 velocity, vec2 seed) {
-    float speedRate = length(velocity) / maxSpeed;
-    float drop_rate = dropRate + speedRate * dropRateBump;
-    return step(1.0f - drop_rate, rand(seed));
-}
-
 /// main func
 vec2 calculateDisplacedLonLat(float lon, float lat, float offsetX, float offsetY) {
     float latRad = radians(lat);
@@ -78,14 +63,6 @@ vec2 calculateDisplacedLonLat(float lon, float lat, float offsetX, float offsetY
     return vec2(newLon, newLat);
 }
 
-vec4 getRebirthPos(vec2 nowPos, vec4 cExtent) {
-    vec2 seed = randomSeed * nowPos;
-    vec2 rebirthPos = vec2(rand(seed + randomSeed), rand(seed - randomSeed));
-    float x = mix(cExtent.x, cExtent.z, rebirthPos.x);
-    float y = mix(cExtent.y, cExtent.w, rebirthPos.y);
-    return vec4(x, y, x, y);
-}
-
 bool validExtentCheck(vec2 pos, vec4 extent) {
     if(pos.x <= extent.x || pos.x >= extent.z || pos.y <= extent.y || pos.y >= extent.w) {
         return false;
@@ -98,23 +75,15 @@ vec2 getVelocity(vec2 uv) {
     vec2 uvCorrected = uvCorrect(uv, dimention);
     vec2 uvSpeed = texture(uvTexture, uvCorrected).rg;
     return uvSpeed;
-    // float speed = mix(0.0f, maxSpeed, length(uvSpeed));
 }
 
 void main() {
 
     vec4 cExtent = currentExtent();
-    vec2 nowPos = a_particleInfo.zw;
+    vec2 nowPos = a_startPos;//lng lat
 
-    // Bounding box check
-    if(!validExtent(flowExtent, mapExtent)) {
-        out_particleInfo = getRebirthPos(nowPos, flowExtent);
-        return;
-    }
-
-    // Particle now postion check
-    if(!validExtentCheck(nowPos, cExtent)) {
-        out_particleInfo = getRebirthPos(nowPos, cExtent);
+    if(!validExtent(flowExtent, mapExtent) || !validExtentCheck(nowPos, cExtent)) {
+        out_endPos = nowPos; // same point no render
         return;
     }
 
@@ -126,11 +95,11 @@ void main() {
     vec2 newPos = calculateDisplacedLonLat(nowPos.x, nowPos.y, uvSpeed.x * speedFactor, uvSpeed.y * speedFactor);
     newPos = clamp(newPos, cExtent.xy, cExtent.zw);
 
-    vec2 seed = randomSeed * nowPos;
-    if(drop(uvSpeed, seed) == 1.0f || all(lessThan(abs(uvSpeed), vec2(0.001f))) || !validExtentCheck(newPos, cExtent)) {
-        out_particleInfo = getRebirthPos(nowPos, cExtent);
+    if(all(lessThan(abs(uvSpeed), vec2(0.001f))) || !validExtentCheck(newPos, cExtent)) {
+        out_endPos = nowPos; // same point no render
+        return;
     } else {
-        out_particleInfo = vec4(nowPos.x, nowPos.y, newPos.x, newPos.y);
+        out_endPos = newPos;
     }
 
     //// test

@@ -6,12 +6,13 @@ import { onMounted } from 'vue'
 // import { initMap } from '../exps/04polygon/main'
 // import { main } from '../exps/05XFBO/main'
 // import { initMap } from '../exps/06flow/main'
-import { initMap } from '../exps/07arrow/main'
+import { initMap, simpleArrow } from '../exps/07arrow/main'
 // import { main } from '../exps/培训案例/pulsing';
 
 
 onMounted(() => {
-  initMap()
+  // initMap()
+  simpleArrow()
   // instansDraw()
   // main()
   // prepare()
@@ -22,7 +23,7 @@ onMounted(() => {
 <template>
   <div class="main">
     <canvas id='playground'></canvas>
-    <div id="map"></div>
+    <!-- <div id="map"></div> -->
   </div>
 </template>
 
@@ -38,21 +39,21 @@ onMounted(() => {
   align-items: center;
   background-color: rgb(63, 63, 63);
 
-  // #playground {
-  //   position: relative;
-  //   width: 90%;
-  //   height: 90%;
-  //   background-color: gray;
-  //   z-index: 1;
-  // }
-
-  #map {
-    position: absolute;
-    width: 100%;
-    height: 100%;
+  #playground {
+    position: relative;
+    width: 90%;
+    height: 90%;
+    background-color: gray;
     z-index: 0;
-    background-color: transparent;
   }
+
+  // #map {
+  //   position: absolute;
+  //   width: 100%;
+  //   height: 100%;
+  //   z-index: 0;
+  //   background-color: transparent;
+  // }
 
 }
 </style>

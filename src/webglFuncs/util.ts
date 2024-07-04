@@ -346,3 +346,48 @@ export class M4 {
     }
 
 }
+
+export class M2 {
+    value: Array<number>
+    constructor(data: Array<number> = [1, 0, 0, 1]) {
+        this.value = data
+    }
+    static rotateMat(angle: number):M2{
+        let rad = angle * Math.PI / 180
+        let s = Math.sin(rad)
+        let c = Math.cos(rad)
+        let rotateMat = new M2([
+            c, -s,
+            s, c
+        ])
+        return rotateMat
+    }
+    static mutiply(b: any, a: any): M2 {
+        // B * A
+        var a00 = a[0 * 2 + 0]
+        var a01 = a[0 * 2 + 1]
+        var a10 = a[1 * 2 + 0]
+        var a11 = a[1 * 2 + 1]
+        var b00 = b[0 * 2 + 0]
+        var b01 = b[0 * 2 + 1]
+        var b10 = b[1 * 2 + 0]
+        var b11 = b[1 * 2 + 1]
+        return new M2([
+            b00 * a00 + b01 * a10,
+            b00 * a01 + b01 * a11,
+            b10 * a00 + b11 * a10,
+            b10 * a01 + b11 * a11,
+        ])
+    }
+    static mutiplyVec(b: any, a: any): Array<number> {
+        // mat2 * vec2 = vec2
+        var b00 = b[0 * 2 + 0]
+        var b01 = b[0 * 2 + 1]
+        var b10 = b[1 * 2 + 0]
+        var b11 = b[1 * 2 + 1]
+        return [
+            b00 * a[0] + b01 * a[1],
+            b10 * a[0] + b11 * a[1]
+        ]
+    }
+}

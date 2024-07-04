@@ -3,6 +3,7 @@
 in vec2 a_pos;
 
 uniform mat4 u_matrix;
+uniform sampler2D uvTexture;
 
 const float PI = 3.14159265359f;
 vec2 lnglat2Mercator(float lng, float lat) {
@@ -12,10 +13,17 @@ vec2 lnglat2Mercator(float lng, float lat) {
 }
 
 void main() {
+    vec2 mercator = lnglat2Mercator(a_pos.x, a_pos.y);
+    vec4 posInCS = u_matrix * vec4(mercator, 0.0f, 1.0f);
+    vec2 posInSS = posInCS.xy / posInCS.w;
+    vec2 uv = (posInSS + vec2(1.0f)) * 0.5f;
+    uv = vec2(uv.x, uv.y);
+    vec2 texel = texture(uvTexture, uv).rg;
 
-    // vec2 mercator = lnglat2Mercator(a_pos.x, a_pos.y);
-    vec2 pos = a_pos;
-    gl_Position =  vec4(pos, 0.0f, 1.0f);
-    gl_PointSize = 10.0f;
-    // gl_Position = u_matrix * vec4(mercator, 0.0f, 1.0f);
+    if (all(lessThan(texel, vec2(0.001f)))) {
+        return;
+    }
+
+    gl_PointSize = 2.0f;
+    gl_Position = u_matrix * vec4(mercator, 0.0f, 1.0f);
 }

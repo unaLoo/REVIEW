@@ -44,6 +44,12 @@ class EulerFlowLayer {
     texCoordBuffer_showing: WebGLBuffer | null = null
     showingTexture: WebGLTexture | null = null
 
+    ///////// temp
+    program_point: WebGLProgram | null = null
+    Locations_point: { [name: string]: number | WebGLUniformLocation | null } = {}
+    vao_point: WebGLVertexArrayObject | null = null
+    pointBuffer: WebGLBuffer | null = null
+    pointNum: number = 0
 
 
     Locations_simulate: { [name: string]: number | WebGLUniformLocation | null } = {}
@@ -105,7 +111,9 @@ class EulerFlowLayer {
 
         await this.programInit_showing(gl)
 
-        await this.programInit_simulate(gl)
+        await this.programInit_pointShowing(gl)
+
+        // await this.programInit_simulate(gl)
 
         // setInterval(() => {
         //     gl.bindBuffer(gl.ARRAY_BUFFER, this.pposBuffer_simulate_1)
@@ -121,6 +129,12 @@ class EulerFlowLayer {
         // }, 3000)
 
         this.ready = true
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key == 'r') {
+                this.printBuffer(gl, this.pointBuffer!, this.pointNum * 2);
+            }
+        })
 
     }
     render(gl: WebGL2RenderingContext, matrix: Array<number>) {
@@ -164,15 +178,25 @@ class EulerFlowLayer {
 
             ////////// 2nd::: show uvTexture program  ///// background SHOWING
 
-            gl.useProgram(this.program_showing!)
+            // gl.useProgram(this.program_showing!)
+            // gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+            // gl.activeTexture(gl.TEXTURE0)
+            // gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
+            // gl.bindVertexArray(this.vao_showing)
+            // gl.uniform1i(this.Locations_showing['uv_texture'] as WebGLUniformLocation, 0)
+            // // gl.enable(gl.BLEND);
+            // // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+
+            ////////// 3rd::: point showing program  ///// point SHOWING
+
+            gl.useProgram(this.program_point!)
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-            gl.activeTexture(gl.TEXTURE0)
-            gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
-            gl.bindVertexArray(this.vao_showing)
-            gl.uniform1i(this.Locations_showing['uv_texture'] as WebGLUniformLocation, 0)
-            // gl.enable(gl.BLEND);
-            // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+            gl.bindVertexArray(this.vao_point)
+            gl.uniformMatrix4fv(this.Locations_point['u_matrix'] as WebGLUniformLocation, false, matrix)
+            gl.drawArrays(gl.POINTS, 0, this.pointNum)
+
 
 
 
@@ -325,6 +349,43 @@ class EulerFlowLayer {
 
     }
 
+    async programInit_pointShowing(gl: WebGL2RenderingContext) {
+        let VSS = (await axios.get('/shaders/07arrow/point.vert.glsl'))
+        let FSS = (await axios.get('/shaders/07arrow/point.frag.glsl'))
+        let VS = util.createShader(gl, gl.VERTEX_SHADER, VSS.data)!
+        let FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS.data)!
+        this.program_point = util.createProgram(gl, VS, FS)!
+        console.log(VSS.data, FSS.data)
+        this.Locations_point['a_pos'] = gl.getAttribLocation(this.program_point, 'a_pos')
+        this.Locations_point['u_matrix'] = gl.getUniformLocation(this.program_point, 'u_matrix')
+        console.log(this.Locations_point)
+        let data = this.generateGrid(this.flowExtent, 100)
+
+        this.pointNum = data.gridDataArray.length / 2
+        let positionData = data.gridDataArray
+
+        /// test
+        this.pointNum = 1
+        positionData = [
+            0.1,0.5
+        ]
+
+        console.log(positionData)
+        this.vao_point = gl.createVertexArray()!
+        this.pointBuffer = util.createVBO(gl, positionData)
+        gl.enableVertexAttribArray(this.Locations_point['a_pos'] as number)
+        gl.vertexAttribPointer(
+            this.Locations_point['a_pos'] as number,
+            2,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.bindVertexArray(null)
+
+    }
+
     async programInit_simulate(gl: WebGL2RenderingContext) {
         let particleInfoData1 = new Array(this.particelNum * 4).fill(0)
         let particleInfoData2 = new Array(this.particelNum * 4).fill(0)
@@ -365,7 +426,7 @@ class EulerFlowLayer {
         this.vao_simulate_1 = gl.createVertexArray()!
         gl.bindVertexArray(this.vao_simulate_1)
         this.pposBuffer_simulate_1 = util.createVBO(gl, particleInfoData1)
-        console.log(particleInfoData1)
+        // console.log(particleInfoData1)
         gl.enableVertexAttribArray(this.Locations_simulate['a_particleInfo'] as number)
         gl.vertexAttribPointer(
             this.Locations_simulate['a_particleInfo'] as number,
@@ -478,6 +539,16 @@ class EulerFlowLayer {
         // this.gui.add(parameters, 'fillWidth', 0, 5, 0.1).onChange(value => this.fillWidth = value)
         // this.gui.add(parameters, 'framePerStep', 30, 240, 10).onChange(value => this.framePerStep = value)
         // this.gui.open()
+    }
+
+    printBuffer(gl: WebGL2RenderingContext, buffer: WebGLBuffer, size: number, label: string = '') {
+        ////// debug
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+        const debugArr = new Float32Array(size)
+        gl.getBufferSubData(gl.ARRAY_BUFFER, 0, debugArr)
+        console.log(`${label}`, debugArr)
+        gl.bindBuffer(gl.ARRAY_BUFFER, null)
+        return debugArr
     }
 
     generateGrid(extent: number[], gridNumPerRow: number) {

@@ -95,6 +95,7 @@ export class EulerFlowLayer {
     localFrames = 0
     progressRatio = 0
     mapExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
+    stop: boolean = false
 
     validExtent: number[] = []
     gridNumPerRow: number = 50
@@ -193,9 +194,11 @@ export class EulerFlowLayer {
             let mapCenterInMercator = mapbox.MercatorCoordinate.fromLngLat(this.map!.getCenter())
 
             ////////// update dynamic data
-            this.globalFrames += 1
-            this.localFrames = (this.localFrames + 1) % this.framePerStep
-            this.progressRatio = this.localFrames / this.framePerStep
+            if (!this.stop) {
+                this.globalFrames += 1
+                this.localFrames = (this.localFrames + 1) % this.framePerStep
+                this.progressRatio = this.localFrames / this.framePerStep
+            }
             this.mapExtent = getMapExtent(this.map!)
             this.randomSeed = Math.random()
 
@@ -244,6 +247,7 @@ export class EulerFlowLayer {
             // gl.drawArrays(gl.POINTS, 0, this.pointNum)
 
             ////////// 4th::: simulate program  ///// simulate
+
             gl.enable(gl.RASTERIZER_DISCARD)
             gl.useProgram(this.program_simulate!)
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
@@ -266,6 +270,7 @@ export class EulerFlowLayer {
             gl.bindBuffer(gl.ARRAY_BUFFER, null)
             gl.disable(gl.RASTERIZER_DISCARD)
 
+
             ////////// 5th::: segment showing program  ///// segment SHOWING
             gl.useProgram(this.program_segmentShowing!)
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
@@ -285,19 +290,12 @@ export class EulerFlowLayer {
 
             gl.bindVertexArray(this.vao_arrowShowing)
             gl.uniformMatrix4fv(this.Locations_arrowShowing['u_matrix'] as WebGLUniformLocation, false, matrix)
-            gl.uniformMatrix2fv(this.Locations_arrowShowing['u_rotateMatrix'], false, util.M2.rotateMat(this.arrowAngle).value)
+            gl.uniform1f(this.Locations_arrowShowing['u_arrowAngle'], this.arrowAngle)
             gl.uniform1f(this.Locations_arrowShowing['u_arrowLength'], this.arrowLength)
             gl.uniform2f(this.Locations_arrowShowing['u_canvasSize'], gl.canvas.width, gl.canvas.height)
             gl.uniform3f(this.Locations_arrowShowing['u_arrowColor'], this.arrowColor[0], this.arrowColor[1], this.arrowColor[2])
 
             gl.drawArraysInstanced(gl.LINES, 0, 4, this.pointNum)
-
-
-
-
-
-
-
         }
         else {
             console.log('polygon layer not readydd')
@@ -551,7 +549,7 @@ export class EulerFlowLayer {
         this.Locations_segmentShowing['aaWidth'] = gl.getUniformLocation(this.program_segmentShowing, 'aaWidth')
         this.Locations_segmentShowing['fillWidth'] = gl.getUniformLocation(this.program_segmentShowing, 'fillWidth')
         this.Locations_segmentShowing['u_arrowColor'] = gl.getUniformLocation(this.program_segmentShowing, 'u_arrowColor')
-        
+
 
         console.log(this.Locations_segmentShowing)
 
@@ -594,7 +592,7 @@ export class EulerFlowLayer {
         this.Locations_arrowShowing['endPos'] = gl.getAttribLocation(this.program_arrowShowing, 'endPos')
 
         this.Locations_arrowShowing['u_matrix'] = gl.getUniformLocation(this.program_arrowShowing, 'u_matrix')
-        this.Locations_arrowShowing['u_rotateMatrix'] = gl.getUniformLocation(this.program_arrowShowing, 'u_rotateMatrix')
+        this.Locations_arrowShowing['u_arrowAngle'] = gl.getUniformLocation(this.program_arrowShowing, 'u_arrowAngle')
         this.Locations_arrowShowing['u_arrowLength'] = gl.getUniformLocation(this.program_arrowShowing, 'u_arrowLength')
         this.Locations_arrowShowing['u_canvasSize'] = gl.getUniformLocation(this.program_arrowShowing, 'u_canvasSize')
         this.Locations_arrowShowing['u_arrowColor'] = gl.getUniformLocation(this.program_arrowShowing, 'u_arrowColor')
@@ -686,6 +684,7 @@ export class EulerFlowLayer {
     initGUI() {
 
         const restart = () => {
+            console.log('restart')
             let gl = this.gl!
             let data = this.generateGrid(this.validExtent, this.gridNumPerRow, this.gridNumPerCol)
             this.pointNum = data.gridDataArray.length / 2
@@ -706,10 +705,12 @@ export class EulerFlowLayer {
             arrowLength: this.arrowLength,
             gridPerRow: this.gridNumPerRow,
             gridPerCol: this.gridNumPerCol,
+            stop: this.stop,
         }
         this.gui.domElement.style.position = 'absolute'
         this.gui.domElement.style.top = '2vh'
-        this.gui.domElement.style.right = '10vw'
+        this.gui.domElement.style.right = '1vw'
+        this.gui.add(parameters, 'stop', false).onChange(value => this.stop = value)
         this.gui.add(parameters, 'aaWidth', 0, 5, 0.1).onChange(value => this.aaWidth = value)
         this.gui.add(parameters, 'fillWidth', 0, 5, 0.1).onChange(value => this.fillWidth = value)
         this.gui.add(parameters, 'framePerStep', 30, 240, 10).onChange(value => this.framePerStep = value)
@@ -718,7 +719,6 @@ export class EulerFlowLayer {
         this.gui.add(parameters, 'arrowLength', 1, 30, 1).onChange(value => this.arrowLength = value)
         this.gui.add(parameters, 'gridPerCol', 10, 200, 1).onChange(value => { this.gridNumPerCol = value; restart() })
         this.gui.add(parameters, 'gridPerRow', 10, 200, 1).onChange(value => { this.gridNumPerRow = value; restart() })
-
         this.gui.open()
     }
 
@@ -779,6 +779,53 @@ function getMapExtent(map: mapbox.Map) {
     return [boundsArray[0][0], boundsArray[0][1], boundsArray[1][0], boundsArray[1][1]]
 }
 
+class upLine {
+    id: string = ''
+    type: string = 'custom'
+    map: mapbox.Map | null = null
+    gl: WebGL2RenderingContext | null = null
+
+    program: WebGLProgram | null = null
+    matLoc: WebGLUniformLocation | null = null
+    constructor(id: string) {
+        this.id = id
+    }
+    async onAdd(map: mapbox.Map, gl: WebGL2RenderingContext) {
+        const vss = `#version 300 es
+        uniform mat4 matrix;
+        const vec3[2] upLineVertices = vec3[2](vec3(0.8f, 0.4f, 0.0f), vec3(0.8f, 0.4f, 0.5f));
+        void main() {
+            vec3 pos = upLineVertices[gl_VertexID];
+            gl_Position = matrix * vec4(pos, 1.0f);
+        }        
+        `
+        const fss = `#version 300 es
+        precision highp float;
+        out vec4 fragColor;
+        void main() {
+            fragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
+        }`
+        const vs = util.createShader(gl, gl.VERTEX_SHADER, vss)!
+        const fs = util.createShader(gl, gl.FRAGMENT_SHADER, fss)!
+        this.program = util.createProgram(gl, vs, fs)!
+
+        this.matLoc = gl.getUniformLocation(this.program, 'matrix')!
+
+    }
+
+    render(gl: WebGL2RenderingContext, matrix: number[]) {
+
+        gl.useProgram(this.program)
+        gl.uniformMatrix4fv(this.matLoc, false, matrix)
+        gl.drawArrays(gl.LINES, 0, 2)
+        this.map!.triggerRepaint()
+
+    }
+
+}
+
+
+
 export const initMap = () => {
     const map = new mapbox.Map({
         style: "mapbox://styles/nujabesloo/clxk678ma00ch01pdd2lfgps2",
@@ -794,6 +841,8 @@ export const initMap = () => {
         console.log('map load!')
         const flowTextureLayer = new EulerFlowLayer('flow')
         map.addLayer(flowTextureLayer as mapbox.AnyLayer)
+        // const upLineLayer = new upLine('upLine')
+        // map.addLayer(upLineLayer as mapbox.AnyLayer)
     })
     return map;
 }

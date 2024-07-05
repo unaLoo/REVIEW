@@ -37,7 +37,6 @@ onMounted(() => {
   map.on('zoom', () => {
     nowZoom.value = map.getZoom()
   })
-
   map.fitBounds([[120.0483046046972, 31.739366192168674], [120.98183604889795, 32.14476417588851]])
   window.addEventListener('keydown', (e) => {
     if (e.key == '1') {
@@ -99,8 +98,8 @@ onMounted(() => {
   #zoom {
     position: absolute;
     z-index: 4;
-    right: 30vw;
-    top: 5vh;
+    right: 15vw;
+    top: 2vh;
     width: 10vw;
     height: 8vh;
     background-color: #333;

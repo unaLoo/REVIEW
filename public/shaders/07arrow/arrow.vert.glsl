@@ -4,16 +4,9 @@ in vec2 startPos;
 in vec2 endPos;
 
 uniform mat4 u_matrix;
-uniform mat2 u_rotateMatrix;
+uniform float u_arrowAngle;
 uniform float u_arrowLength;
 uniform vec2 u_canvasSize;
-
-const vec4 wiseClock = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-const vec4 Counterclockwise = vec4(1.0f, -1.0f, -1.0f, 1.0f);
-
-mat2 trans(mat2 m, vec4 v) {
-    return mat2(m[0][0] * v.x, m[0][1] * v.y, m[1][0] * v.z, m[1][1] * v.w);
-}
 
 const float PI = 3.1415926535897932384626433832795f;
 vec2 lnglat2Mercator(float lng, float lat) {
@@ -26,25 +19,45 @@ vec4 getClipSpacePosition(vec2 pos) { // pos in lnglat
     return u_matrix * vec4(mercatorPos, 0.0f, 1.0f);
 }
 
+mat2 rotate(float angle, bool clockwise) {
+    float s = sin(angle * PI / 180.0f);
+    float c = cos(angle * PI / 180.0f);
+    return clockwise ? mat2(c, -s, s, c) : mat2(c, s, -s, c);
+}
+
+mat3 rotateMat(float angle) {
+    // rotete around z
+    float s = sin(angle * PI / 180.0f);
+    float c = cos(angle * PI / 180.0f);
+    return mat3(c, s, 0, -s, c, 0, 0, 0, 1);
+}
+
 void main() {
 
     if(gl_VertexID == 1 || gl_VertexID == 2) {
         gl_Position = getClipSpacePosition(endPos);
         return;
     }
+    // World Space offset
+    float scaleFactor = 5000.0f;
+    vec2 end2start = normalize(startPos - endPos);
+    mat2 rotateM = rotate(u_arrowAngle, gl_VertexID == 0);
+    vec2 rotatedVector = (rotateM * end2start);
+    vec2 offsertedPos = endPos + rotatedVector * u_arrowLength / scaleFactor;
+    gl_Position = getClipSpacePosition(offsertedPos);
 
-    vec4 startPosCS = getClipSpacePosition(startPos);
-    vec4 endPosCS = getClipSpacePosition(endPos);
 
-    vec4 startPosSS = startPosCS / startPosCS.w;
-    vec4 endPosSS = endPosCS / endPosCS.w;
 
-    vec2 end2start = normalize(startPosSS.xy - endPosSS.xy);
-    mat2 rotateM = trans(u_rotateMatrix, gl_VertexID == 0 ? Counterclockwise : wiseClock);
-    vec2 rotatedVector = normalize(rotateM * end2start);
-    vec2 offsertedPosInSS = endPosSS.xy + rotatedVector * u_arrowLength / u_canvasSize;
+    // Screen Space offset
+    // vec4 startPosCS = getClipSpacePosition(startPos);
+    // vec4 endPosCS = getClipSpacePosition(endPos);
 
+    // vec4 startPosSS = startPosCS / startPosCS.w;
+    // vec4 endPosSS = endPosCS / endPosCS.w;
+
+    // vec2 end2start = normalize(startPosSS.xy - endPosSS.xy);
+    // mat2 rotateM = rotate(u_arrowAngle, gl_VertexID == 0 ? false : true);
+    // vec2 rotatedVector = (rotateM * end2start);
+    // vec2 offsertedPosInSS = endPosSS.xy + rotatedVector * u_arrowLength / u_canvasSize.x;
     // gl_Position = vec4(offsertedPosInSS, 0.0f, 1.0f) * endPosCS.w;
-    gl_Position = vec4(offsertedPosInSS, 0.0f, 1.0f) * 1.0;
-    gl_PointSize = 1.0f;
 }

@@ -83,6 +83,7 @@ class FlowLayer {
     nowSegRenderVAO: WebGLVertexArrayObject | null = null
     nowRenderFBO: WebGLFramebuffer | null = null
     nowHistoryTrajectoryTexture: WebGLTexture | null = null
+    nowTotalTrajectoryTexture: WebGLTexture | null = null
 
 
 
@@ -96,7 +97,7 @@ class FlowLayer {
     particelNum: number = 65536
     dropRate: number = 0.003
     dropRateBump: number = 0.001
-    velocityFactor: number = 50.0
+    velocityFactor: number = 1000.0
     fadeFactor: number = 0.97
     aaWidth: number = 1.0
     fillWidth: number = 3.0
@@ -168,18 +169,18 @@ class FlowLayer {
         })
 
         const idle = () => {
-            // this.programControl['clear_fbo'] = true
-
-            this.programControl['historyAndSegment'] = false
-            this.programControl['onlySegment'] = true
+            this.programControl['clear_fbo'] = true
+            this.programControl['delaunay_showing'] = true
+            // this.programControl['historyAndSegment'] = false
+            // this.programControl['onlySegment'] = true
         }
 
         const restart = () => {
-            // this.programControl['clear_fbo'] = false
-
-            this.programControl['onlySegment'] = false
-            this.programControl['historyAndSegment'] = true
-
+            reSeed()
+            this.programControl['clear_fbo'] = false
+            this.programControl['delaunay_showing'] = false
+            // this.programControl['historyAndSegment'] = true
+            // this.programControl['onlySegment'] = false
         }
 
         this.map.on('movestart', idle)
@@ -198,8 +199,7 @@ class FlowLayer {
         this.map.on('pitch', idle)
         this.map.on('pitchend', restart)
 
-
-        setInterval(() => {
+        const reSeed = () => {
             gl.bindBuffer(gl.ARRAY_BUFFER, this.pposBuffer_simulate_1)
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.particleRandomInitData), gl.STATIC_DRAW)
             gl.bindBuffer(gl.ARRAY_BUFFER, this.velocityBuffer1)
@@ -210,7 +210,10 @@ class FlowLayer {
             gl.bindBuffer(gl.ARRAY_BUFFER, this.velocityBuffer2)
             gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(this.velocityEmptyInitData), gl.STATIC_DRAW)
             gl.bindBuffer(gl.ARRAY_BUFFER, null)
-        }, 3000)
+        }
+
+        this.nowHistoryTrajectoryTexture = this.trajectoryTexture_1
+        this.nowTotalTrajectoryTexture = this.trajectoryTexture_2
 
         this.ready = true
 
@@ -233,52 +236,6 @@ class FlowLayer {
             let centerXdecode = util.encodeFloatToDouble(mapCenterInMercator.x)
             let centerYdecode = util.encodeFloatToDouble(mapCenterInMercator.y)
 
-            ///// debug
-            // let pos_high = []
-            // function translateToRelative(pos_high: number[], pos_low: number[], u_centerHigh: number[], u_centerLow: number[]) {
-            //     if (
-            //         pos_high.length !== 2 || pos_low.length !== 2 ||
-            //         u_centerHigh.length !== 2 || u_centerLow.length !== 2
-            //     ) {
-            //         throw new Error("All input parameters must be arrays of length 2.");
-            //     }
-
-            //     // 计算高位和低位的差值
-            //     let highDiff = [
-            //         pos_high[0] - u_centerHigh[0],
-            //         pos_high[1] - u_centerHigh[1]
-            //     ];
-
-            //     let lowDiff = [
-            //         pos_low[0] - u_centerLow[0],
-            //         pos_low[1] - u_centerLow[1]
-            //     ];
-
-            //     // 返回相对坐标
-            //     return [
-            //         highDiff[0] + lowDiff[0],
-            //         highDiff[1] + lowDiff[1]
-            //     ];
-            // }
-
-
-            // const testCenterPos = [0.8347439248338836, 0.405535903980856, 0.0, 1.0]
-            // const testPointPos = [0.1, 0.1, 0.0, 1.0]
-
-            // console.log(mercatorCenterOffsetMatrix)
-            // let res = multiplyMatrixByVec4(mercatorCenterOffsetMatrix, testPointPos)
-            // // res[0]/=res[3]
-            // // res[1]/=res[3]
-            // // res[2]/=res[3]
-            // // res[3] = 1.0
-            // console.log(res)
-            // // console.log('11111111111')
-            // // console.log(this.map!.transform.mercatorMatrix)
-            // // console.log(matrix)
-            // // const translateToRelative = ()=>{
-
-            // }
-
             ////////// update dynamic data
             this.globalFrames += 1
             this.localFrames = (this.localFrames + 1) % this.framePerStep
@@ -293,11 +250,10 @@ class FlowLayer {
                 this.nextStep(gl)
             }
 
-            ////////// 1st::: delaunay program to get uv texture
             this.xfSwap(this.globalFrames)
+            ////////// 1st::: delaunay program to get uv texture
 
             if (this.programControl['delaunay']) {
-
                 gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_delaunay)
 
                 gl.useProgram(this.programe_delaunay!)
@@ -315,18 +271,7 @@ class FlowLayer {
             }
 
 
-            ////////// 2nd::: show uvTexture program  ///// background SHOWING
-            if (this.programControl['delaunay_showing']) {
-                gl.useProgram(this.program_showing!)
-                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
-                gl.activeTexture(gl.TEXTURE0)
-                gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
-                gl.bindVertexArray(this.vao_showing)
-                gl.uniform1i(this.Locations_showing['uv_texture'] as WebGLUniformLocation, 0)
-                // gl.enable(gl.BLEND);
-                // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-            }
+
 
             ////////// 3rd::: simulate program to get new position
             if (this.programControl['simulate']) {
@@ -361,16 +306,18 @@ class FlowLayer {
                 gl.disable(gl.RASTERIZER_DISCARD)
             }
 
-            //////////4 ::: render to frame buffer
-            ////// 4.1 ::: the history trajectory showing program 
+            ////////4 ::: render to frame buffer
+            //// 4.1 ::: the history trajectory showing program 
             if (this.programControl['historyAndSegment']) {
+                // gl.enable(gl.BLEND);
+                // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
                 gl.bindFramebuffer(gl.FRAMEBUFFER, this.nowRenderFBO!) // render to frame buffer
-                // gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_1) // render to trajectoryTexture_1
-                gl.clearColor(0, 0, 0, 0)
-                gl.clear(gl.COLOR_BUFFER_BIT)
+                // gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowsing_1) // render to trajectoryTexture_1
                 gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
                 gl.useProgram(this.program_historyShowing!)
+                gl.clearColor(0, 0, 0, 0)
+                gl.clear(gl.COLOR_BUFFER_BIT)
                 gl.activeTexture(gl.TEXTURE0)
                 gl.bindTexture(gl.TEXTURE_2D, this.nowHistoryTrajectoryTexture!) // history info in trajectoryTexture_1
                 gl.uniform1i(this.Locations_historyShowing['showTexture'] as WebGLUniformLocation, 0)
@@ -378,8 +325,7 @@ class FlowLayer {
                 gl.bindTexture(gl.TEXTURE_2D, this.uvTexture!) // history info in trajectoryTexture_2
                 gl.uniform1i(this.Locations_historyShowing['uv_texture'] as WebGLUniformLocation, 1)
                 gl.uniform1f(this.Locations_historyShowing['fadeFactor'] as WebGLUniformLocation, this.fadeFactor)
-                gl.clearColor(0, 0, 0, 0)
-                gl.clear(gl.COLOR_BUFFER_BIT)
+
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
 
@@ -404,8 +350,7 @@ class FlowLayer {
             if (this.programControl['onlySegment']) {
                 gl.bindFramebuffer(gl.FRAMEBUFFER, this.nowRenderFBO!) // render to frame buffer
                 // gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_1) // render to trajectoryTexture_1
-                gl.clearColor(0, 0, 0, 0)
-                gl.clear(gl.COLOR_BUFFER_BIT)
+
                 gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
                 gl.useProgram(this.program_segmentShowing!)
@@ -421,23 +366,55 @@ class FlowLayer {
                 gl.bindVertexArray(this.nowSegRenderVAO)
                 // gl.bindVertexArray(this.vao_segmentShowing1)
                 // gl.drawArraysInstanced(gl.LINES, 0, 2, this.particelNum)
+                gl.clearColor(0, 0, 0, 0)
+                gl.clear(gl.COLOR_BUFFER_BIT)
                 gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.particelNum) //with anti-aliasing
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null)
             }
 
             if (this.programControl['clear_fbo']) {
-                gl.bindFramebuffer(gl.FRAMEBUFFER, this.nowRenderFBO) // render to trajectoryTexture_1
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_1) // render to trajectoryTexture_1
+                gl.clearColor(0, 0, 0, 0)
+                gl.clear(gl.COLOR_BUFFER_BIT)
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_2) // render to trajectoryTexture_1
                 gl.clearColor(0, 0, 0, 0)
                 gl.clear(gl.COLOR_BUFFER_BIT)
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null)
             }
 
-            ////////// 5 ::: render to canvas
-            if (this.programControl['final_showing']) {
-                gl.useProgram(this.program_finalShowing!)
+            ////////// 2nd::: show uvTexture program  ///// background SHOWING
+            if (this.programControl['delaunay_showing']) {
+                console.log(' delaunay_showing')
+                gl.bindFramebuffer(gl.FRAMEBUFFER, this.nowRenderFBO!)
                 gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+                gl.clearColor(0, 0, 0, 0)
+                gl.clear(gl.COLOR_BUFFER_BIT)
+
+                gl.useProgram(this.program_showing!)
                 gl.activeTexture(gl.TEXTURE0)
-                gl.bindTexture(gl.TEXTURE_2D, this.trajectoryTexture_1!) // history info in trajectoryTexture_1
+                gl.bindTexture(gl.TEXTURE_2D, this.uvTexture)
+                gl.bindVertexArray(this.vao_showing)
+                gl.uniform1i(this.Locations_showing['uv_texture'] as WebGLUniformLocation, 0)
+                // gl.enable(gl.BLEND);
+                // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+                gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+            }
+
+            //////// 5 ::: render to canvas
+            if (this.programControl['final_showing']) {
+                gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
+                gl.useProgram(this.program_finalShowing!)
+                // gl.enable(gl.BLEND);
+                // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+                gl.activeTexture(gl.TEXTURE0)
+                gl.bindTexture(gl.TEXTURE_2D, this.nowTotalTrajectoryTexture!) // history info in trajectoryTexture_1
+                gl.uniform1i(this.Locations_finalShowing['showTexture'] as WebGLUniformLocation, 0)
+                gl.activeTexture(gl.TEXTURE1)
+                gl.bindTexture(gl.TEXTURE_2D, this.uvTexture!)
+                gl.uniform1i(this.Locations_finalShowing['uvTexture'] as WebGLUniformLocation, 1)
                 // gl.enable(gl.BLEND);
                 // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
@@ -478,7 +455,7 @@ class FlowLayer {
                 let maxSpeed = 0
                 for (let i = 0; i < this.particelNum; i++) {
                     let speed = res[i]
-                    
+
                     if (speed > maxSpeed) {
                         maxSpeed = speed
                     }
@@ -833,6 +810,8 @@ class FlowLayer {
         const FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS)!
         this.program_finalShowing = util.createProgram(gl, VS, FS)!
         this.Locations_finalShowing['showTexture'] = gl.getUniformLocation(this.program_finalShowing, 'showTexture')
+        this.Locations_finalShowing['uvTexture'] = gl.getUniformLocation(this.program_finalShowing, 'uvTexture')
+
     }
 
 
@@ -890,7 +869,7 @@ class FlowLayer {
 
             this.nowRenderFBO = this.fbo_historyShowing_1 // render target ==> trajectoryTexture_1
             this.nowHistoryTrajectoryTexture = this.trajectoryTexture_2 // render history texture ==> trajectoryTexture_2
-
+            this.nowTotalTrajectoryTexture = this.trajectoryTexture_1 // render total texture ==> trajectoryTexture_1
         } else {
             this.nowXFVAO_simu = this.vao_simulate_2 // xf input 
             this.nowXFO_simu = this.xfo_simulate_2 // xfo , out to ppos1 , velocity1
@@ -898,7 +877,7 @@ class FlowLayer {
 
             this.nowRenderFBO = this.fbo_historyShowing_2 // render target ==> trajectoryTexture_2
             this.nowHistoryTrajectoryTexture = this.trajectoryTexture_1 // render history texture ==> trajectoryTexture_1
-
+            this.nowTotalTrajectoryTexture = this.trajectoryTexture_2 // render total texture ==> trajectoryTexture_2
         }
         // let tempxfo = this.xfo_simulate_1
         // this.xfo_simulate_1 = this.xfo_simulate_2
@@ -959,7 +938,7 @@ class FlowLayer {
         }
         this.gui.domElement.style.position = 'absolute'
         this.gui.domElement.style.top = '2vh'
-        this.gui.domElement.style.right = '10vw'
+        this.gui.domElement.style.right = '2vw'
         this.gui.add(parameters, 'particleNum', 0, 65536).onChange(value => this.particelNum = value)
         this.gui.add(parameters, 'velocityFactor', 1, 50, 1).onChange(value => this.velocityFactor = value)
         this.gui.add(parameters, 'fadeFactor', 0.8, 1.0, 0.01).onChange(value => this.fadeFactor = value)
@@ -1004,7 +983,7 @@ export const initMap = () => {
     }).on('load', () => {
 
         console.log('map load!')
-
+        map.fitBounds([[120.0483046046972, 31.739366192168674], [120.98183604889795, 32.14476417588851]])
         // const geojson = '/flowResource/geojson/polygon.geojson'
         // const polygonlayer = new polygonLayer('polygon', geojson)
         // map.addLayer(polygonlayer as mapbox.AnyLayer)

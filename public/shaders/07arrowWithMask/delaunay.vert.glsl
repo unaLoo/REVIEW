@@ -7,7 +7,7 @@ in vec2 a_velocity_to;//velocity to bin ==> vec2(u,v)
 uniform float progressRatio;
 uniform vec4 u_flowExtent;// minx, miny, maxx, maxy
 uniform mat4 u_matrix;
-// uniform sampler2D u_maskTexture;
+uniform sampler2D u_mask;
 
 out vec2 v_velocity;
 

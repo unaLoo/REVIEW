@@ -396,12 +396,13 @@ export const initMap = () => {
 
         console.log('map load!')
 
-        const geojson = '/flowResource/geojson/polygon.geojson'
-        // const polygonlayer = new polygonLayer('polygon', geojson)
-        // map.addLayer(polygonlayer as mapbox.AnyLayer)
+        // const geojson = '/flowResource/geojson/polygon.geojson'
+        const geojson = '/flowResource/geojson/CHENGTONG.geojson'
+        const polygonlayer = new polygonLayer('polygon', geojson)
+        map.addLayer(polygonlayer as mapbox.AnyLayer)
 
-        const flowTextureLayer = new FlowTextureLayer('flowTexture', geojson)
-        map.addLayer(flowTextureLayer as mapbox.AnyLayer)
+        // const flowTextureLayer = new FlowTextureLayer('flowTexture', geojson)
+        // map.addLayer(flowTextureLayer as mapbox.AnyLayer)
 
 
     })

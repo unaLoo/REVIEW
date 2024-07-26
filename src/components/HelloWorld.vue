@@ -7,44 +7,45 @@ import mapbox from 'mapbox-gl';
 // import { initMap } from '../exps/04polygon/main'
 // import { main } from '../exps/05XFBO/main'
 // import { initMap } from '../exps/06flow/main'
-import { initMap, EulerFlowLayer } from '../exps/07arrow/main'
+// import { initMap, EulerFlowLayer } from '../exps/07arrow/main'
+import { initMap } from '../exps/07arrow/withMask'
 // import { main } from '../exps/培训案例/pulsing';
 
 const nowZoom = ref(0)
 const percentage = ref(0)
-let map: any
+// let map: any
 
 onMounted(() => {
 
-  map = new mapbox.Map({
-    style: "mapbox://styles/nujabesloo/clxk678ma00ch01pdd2lfgps2",
-    center: [120.980697, 31.684162], // [ 120.556596, 32.042607 ], //[ 120.53525158459905, 31.94879239156117 ], // 120.980697, 31.684162
-    // projection: 'mercator',
-    accessToken: 'pk.eyJ1IjoibnVqYWJlc2xvbyIsImEiOiJjbGp6Y3czZ2cwOXhvM3FtdDJ5ZXJmc3B4In0.5DCKDt0E2dFoiRhg3yWNRA',
-    container: 'map',
-    antialias: true,
-    maxZoom: 18,
-    zoom: 9 //10.496958973488436, // 16
-  }).on('load', () => {
-    console.log('map load!')
-    const eulerFlowLayer = reactive(new EulerFlowLayer('flow'))
-    map.addLayer(eulerFlowLayer as mapbox.AnyLayer)
-    watch(() => eulerFlowLayer.uvResourcePointer, (newVal) => {
-      console.log('new uvResourcePointer', newVal)
-      percentage.value = Math.ceil(newVal / 26 * 100)
-    })
-  })
-  map.on('zoom', () => {
-    nowZoom.value = map.getZoom()
-  })
-  map.fitBounds([[120.0483046046972, 31.739366192168674], [120.98183604889795, 32.14476417588851]])
-  window.addEventListener('keydown', (e) => {
-    if (e.key == '1') {
-      console.log(map.getBounds())
-    }
-  })
+  // map = new mapbox.Map({
+  //   style: "mapbox://styles/nujabesloo/clxk678ma00ch01pdd2lfgps2",
+  //   center: [120.980697, 31.684162], // [ 120.556596, 32.042607 ], //[ 120.53525158459905, 31.94879239156117 ], // 120.980697, 31.684162
+  //   // projection: 'mercator',
+  //   accessToken: 'pk.eyJ1IjoibnVqYWJlc2xvbyIsImEiOiJjbGp6Y3czZ2cwOXhvM3FtdDJ5ZXJmc3B4In0.5DCKDt0E2dFoiRhg3yWNRA',
+  //   container: 'map',
+  //   antialias: true,
+  //   maxZoom: 18,
+  //   zoom: 9 //10.496958973488436, // 16
+  // }).on('load', () => {
+  //   console.log('map load!')
+  //   const eulerFlowLayer = reactive(new EulerFlowLayer('flow'))
+  //   map.addLayer(eulerFlowLayer as mapbox.AnyLayer)
+  //   watch(() => eulerFlowLayer.uvResourcePointer, (newVal) => {
+  //     console.log('new uvResourcePointer', newVal)
+  //     percentage.value = Math.ceil(newVal / 26 * 100)
+  //   })
+  // })
+  // map.on('zoom', () => {
+  //   nowZoom.value = map.getZoom()
+  // })
+  // map.fitBounds([[120.0483046046972, 31.739366192168674], [120.98183604889795, 32.14476417588851]])
+  // window.addEventListener('keydown', (e) => {
+  //   if (e.key == '1') {
+  //     console.log(map.getBounds())
+  //   }
+  // })
 
-  // initMap()
+  initMap()
   // simpleArrow()
   // instansDraw()
   // main()
@@ -57,13 +58,13 @@ onMounted(() => {
   <div class="main">
     <!-- <canvas id='playground'></canvas> -->
     <div id="map"></div>
-    <div id="progress">
+    <!-- <div id="progress">
       <el-progress :percentage="percentage" :stroke-width="15" striped />
     </div>
     <div id="zoom">
       Zoom:<br>
       {{ nowZoom }}
-    </div>
+    </div> -->
   </div>
 </template>
 
@@ -93,6 +94,7 @@ onMounted(() => {
     height: 100%;
     z-index: 0;
     background-color: transparent;
+    background-color: aqua;
   }
 
   #zoom {

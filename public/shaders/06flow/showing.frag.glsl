@@ -3,19 +3,11 @@ precision highp float;
 
 in vec2 v_texCoord;
 uniform sampler2D showingTexture;
+uniform sampler2D showingTexture2;
 out vec4 fragColor;
 
-const vec3 color[10] = vec3[10](vec3(0.0f, 0.0f, 1.0f),   // 蓝色
-vec3(0.0f, 0.5f, 1.0f),   // 浅蓝色
-vec3(0.0f, 1.0f, 1.0f),   // 青色
-vec3(0.0f, 1.0f, 0.5f),   // 浅青色
-vec3(0.0f, 1.0f, 0.0f),   // 绿色
-vec3(0.5f, 1.0f, 0.0f),   // 浅绿色
-vec3(1.0f, 1.0f, 0.0f),   // 黄色
-vec3(1.0f, 0.5f, 0.0f),   // 浅黄色
-vec3(1.0f, 0.0f, 0.0f),   // 红色
-vec3(0.5f, 0.0f, 0.0f)    // 深红色
-);
+const vec3 color[10] = vec3[10](vec3(224, 249, 123) / 255.0f, vec3(233, 231, 116) / 255.0f, vec3(240, 213, 108) / 255.0f, vec3(246, 195, 101) / 255.0f, vec3(250, 176, 94) / 255.0f, vec3(253, 157, 87) / 255.0f, vec3(255, 137, 80) / 255.0f, vec3(255, 115, 73) / 255.0f, vec3(255, 90, 66) / 255.0f, vec3(255, 59, 59) / 255.0f);
+
 const float maxV = 2.5f;
 const float minV = 0.0f;
 
@@ -33,7 +25,7 @@ vec3 getColor(vec2 velocity) {
 
 
 void main() {
-    float alpha = 0.8f;
+    float alpha = 1.0f;
     vec2 velocityUV = texture(showingTexture, v_texCoord).rg;
     if(velocityUV == vec2(0.0f)) {
         fragColor = vec4(0.0f);

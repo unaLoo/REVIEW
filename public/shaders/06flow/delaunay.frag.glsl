@@ -3,6 +3,8 @@ precision highp float;
 
 in vec2 v_velocity;
 
+// uniform sampler2D u_maskTexture;
+
 out vec2 fragColor;
 
 void main() {

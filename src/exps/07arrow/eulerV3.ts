@@ -3,9 +3,9 @@ import * as util from '../../webglFuncs/util'
 import mapbox from 'mapbox-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { Delaunay } from 'd3-delaunay'
-import * as dat from 'dat.gui'
 import earcut from 'earcut'
-import { mat4, vec4 } from 'gl-matrix'
+import * as dat from 'dat.gui'
+import './dat_gui_style.css'
 
 export class EulerFlowLayer {
     id: string = ''
@@ -14,6 +14,10 @@ export class EulerFlowLayer {
     map: mapbox.Map | null = null
     gui: dat.GUI | null = null
     gl: WebGL2RenderingContext | null = null
+
+    stationUrl: string = ''
+    uvUrls: string[] = []
+    prefix: string = ''
 
     // mask_program
     program_mask: WebGLProgram | null = null
@@ -45,7 +49,6 @@ export class EulerFlowLayer {
     velocityBuffer_to: WebGLBuffer | null = null
 
 
-
     uvTexture: WebGLTexture | null = null
     fbo_delaunay: WebGLFramebuffer | null = null
 
@@ -63,11 +66,6 @@ export class EulerFlowLayer {
     vao_endPoint: WebGLVertexArrayObject | null = null
     startPosBuffer: WebGLBuffer | null = null
     endPosBuffer: WebGLBuffer | null = null
-
-    // test
-    posBuffer1: WebGLBuffer | null = null
-    posBuffer2: WebGLBuffer | null = null
-
     pointNum: number = 0
 
 
@@ -94,14 +92,14 @@ export class EulerFlowLayer {
     Locations_arrowShowing: { [name: string]: number | WebGLUniformLocation | null } = {}
     vao_arrowShowing: WebGLVertexArrayObject | null = null
     arrowAngle: number = 30
-    arrowLength: number = 10
+    arrowLength: number = 7
 
 
     /// static data
     flowExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
     flowMaxVelocity: number = 0
 
-    velocityFactor: number = 800.0
+    velocityFactor: number = 300.0
     aaWidth: number = 2.0
     fillWidth: number = 0.5
 
@@ -113,18 +111,22 @@ export class EulerFlowLayer {
     progressRatio = 0
     mapExtent: number[] = [9999, 9999, -9999, -9999] //xmin, ymin, xmax, ymax
     stop: boolean = false
+    steady: boolean = false
 
     validExtent: number[] = []
     gridNumPerRow: number = 50
     gridNumPerCol: number = 30
-    arrowColor: number[] = [0.2, 0.2, 0.2]
+    arrowColor: number[] = [255, 255, 255]
 
-    constructor(id: string) {
+    constructor(id: string, stationUrl: string, uvUrls: string[], prefix: string) {
         this.id = id
+        this.stationUrl = stationUrl
+        this.uvUrls = uvUrls
+        this.prefix = prefix
+        this.totalResourceCount = uvUrls.length + 1
     }
 
     async onAdd(map: mapbox.Map, gl: WebGL2RenderingContext) {
-        this.initGUI()
         const available_extensions = gl.getSupportedExtensions();
         available_extensions?.forEach(ext => {
             gl.getExtension(ext)
@@ -149,28 +151,20 @@ export class EulerFlowLayer {
 
         const idle = () => {
             // need to regenerate point data
-            function currentExtent(flowExtent: Array<number>, mapExtent: Array<number>) {
-                let lonMin = Math.max(flowExtent[0], mapExtent[0]);
-                let latMin = Math.max(flowExtent[1], mapExtent[1]);
-                let lonMax = Math.min(flowExtent[2], mapExtent[2]);
-                let latMax = Math.min(flowExtent[3], mapExtent[3]);
-                if (lonMin > lonMax || latMin > latMax) {
-                    return flowExtent
-                }
-                return [lonMin, latMin, lonMax, latMax];
-            }
-            let flowExtent = this.flowExtent
-            let mapExtent = this.mapExtent
-            let result = currentExtent(flowExtent, mapExtent);
-
-            // console.log('flow extent:',flowExtent)
-            // console.log('map extent:', mapExtent)
-            // console.log('valid extent:', result)
-
-            this.validExtent = result;
+            // do nothing
+            this.stop = true
+            // stop simulate?
         }
 
         const restart = () => {
+            this.stop = false
+
+            let flowExtent = this.flowExtent
+            let mapExtent = this.mapExtent
+            let result = this.currentExtent(flowExtent, mapExtent);
+
+            this.validExtent = result;
+
             let data = this.generateGrid(this.validExtent, this.gridNumPerRow, this.gridNumPerCol)
             this.pointNum = data.gridDataArray.length / 2
             gl.bindBuffer(gl.ARRAY_BUFFER, this.startPosBuffer)
@@ -201,17 +195,16 @@ export class EulerFlowLayer {
         this.map.on('pitchend', restart)
 
         this.ready = true
+        this.initGUI()
 
-        window.addEventListener('keydown', (e) => {
-            if (e.key == 'r') {
-                this.printBuffer(gl, this.startPosBuffer!, this.pointNum * 2);
-            }
-            else if (e.key == 't') {
-                this.printBuffer(gl, this.endPosBuffer!, this.pointNum * 2);
-            } else if (e.key == 'p') {
-
-            }
-        })
+        // window.addEventListener('keydown', (e) => {
+        //     if (e.key == 'r') {
+        //         this.printBuffer(gl, this.startPosBuffer!, this.pointNum * 2);
+        //     }
+        //     else if (e.key == 't') {
+        //         this.printBuffer(gl, this.endPosBuffer!, this.pointNum * 2);
+        //     }
+        // })
 
     }
 
@@ -220,24 +213,6 @@ export class EulerFlowLayer {
     }
 
     render(gl: WebGL2RenderingContext, matrix: Array<number>) {
-
-        const x = [120.52,32.05]
-        let mercator = mapbox.MercatorCoordinate.fromLngLat([x[0], x[1]])
-        let mercatorPos = [mercator.x, mercator.y]
-        // console.log(mercatorPos)
-        // console.log(matrix)
-        const vec = vec4.fromValues(mercatorPos[0], mercatorPos[1], 0, 1)
-        const mat = mat4.fromValues(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5], matrix[6], matrix[7], matrix[8], matrix[9], matrix[10], matrix[11], matrix[12], matrix[13], matrix[14], matrix[15])
-        let result = vec4.create()
-        vec4.transformMat4(result, vec, mat)
-        const ndc = vec4.create()
-        ndc[0] = result[0] / result[3];
-        ndc[1] = result[1] / result[3];
-        ndc[2] = 0.0;
-        ndc[3] = 1.0; // w分量在NDC中通常为1
-        
-        console.log(ndc); // 输出归一化的设备坐标
-
         if (this.ready) {
 
             let mapCenterInMercator = mapbox.MercatorCoordinate.fromLngLat(this.map!.getCenter())
@@ -251,9 +226,10 @@ export class EulerFlowLayer {
             this.mapExtent = getMapExtent(this.map!)
             this.randomSeed = Math.random()
 
-            if (this.localFrames === 0) {
+            if (this.steady === false && this.localFrames === 0){
                 this.nextStep(gl)
             }
+
 
 
             ////////// 0st::: mask program to get mask texture
@@ -267,6 +243,7 @@ export class EulerFlowLayer {
             gl.clearColor(0, 0, 0, 0)
             gl.clear(gl.COLOR_BUFFER_BIT)
             gl.drawElements(gl.TRIANGLES, this.maskIndexLength, gl.UNSIGNED_SHORT, 0)
+            console.log('gl.drawElements(gl.TRIANGLES, this.maskIndexLength, gl.UNSIGNED_SHORT, 0)')
             gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
             ////////// 1st::: delaunay program to get uv texture
@@ -375,13 +352,13 @@ export class EulerFlowLayer {
     }
 
     async programInit_mask(gl: WebGL2RenderingContext) {
-        const maskShapeUrl = '/flowResource/geojson/CHENGTONG.geojson'
+        const maskShapeUrl = '/scratchSomething/geojson/CHENGTONG.geojson'
         var data = await this.parsePolygon(maskShapeUrl)
         var vertexData = data.vertexData
         var indexData = data.indexData
 
-        const vsSource = (await axios.get('/shaders/07arrowWithMask/polygon.vert.glsl')).data
-        const fsSource = (await axios.get('/shaders/07arrowWithMask/polygon.frag.glsl')).data
+        const vsSource = (await axios.get('/scratchSomething/eulerWebGL/polygon.vert.glsl')).data
+        const fsSource = (await axios.get('/scratchSomething/eulerWebGL/polygon.frag.glsl')).data
         const vs = util.createShader(gl, gl.VERTEX_SHADER, vsSource)!
         const fs = util.createShader(gl, gl.FRAGMENT_SHADER, fsSource)!
         this.program_mask = util.createProgram(gl, vs, fs)!
@@ -419,13 +396,13 @@ export class EulerFlowLayer {
     }
 
     async programInit_delaunay(gl: WebGL2RenderingContext) {
-        let { vertexData_station, indexData_station } = await this.getStationData('/flowResource/bin/station.bin')
+        let { vertexData_station, indexData_station } = await this.getStationData(this.prefix + this.stationUrl)
         this.vertexData_station = vertexData_station as Float32Array
         this.indexData_station = indexData_station
 
-        this.velocityData_Array.push(await this.getVelocityData('/flowResource/bin/uv_0.bin'))
-        this.velocityData_Array.push(await this.getVelocityData('/flowResource/bin/uv_1.bin'))
-        this.velocityData_Array.push(await this.getVelocityData('/flowResource/bin/uv_2.bin'))
+        this.velocityData_Array.push(await this.getVelocityData(this.prefix + this.uvUrls[0]))
+        this.velocityData_Array.push(await this.getVelocityData(this.prefix + this.uvUrls[1]))
+        this.velocityData_Array.push(await this.getVelocityData(this.prefix + this.uvUrls[2]))
 
         this.uvResourcePointer = 1
         let toIndex = this.uvResourcePointer
@@ -437,8 +414,8 @@ export class EulerFlowLayer {
         // console.log('velocityData', velocityData)
         ////////// 1st::: delaunay program to get uv texture
 
-        const vsSource_delaunay = (await axios.get('/shaders/07arrowWithMask/delaunay.vert.glsl')).data
-        const fsSource_delaunay = (await axios.get('/shaders/07arrowWithMask/delaunay.frag.glsl')).data
+        const vsSource_delaunay = (await axios.get('/scratchSomething/eulerWebGL/delaunay.vert.glsl')).data
+        const fsSource_delaunay = (await axios.get('/scratchSomething/eulerWebGL/delaunay.frag.glsl')).data
         // console.log(vsSource_delaunay, fsSource_delaunay)
         const vs_delaunay = util.createShader(gl, gl.VERTEX_SHADER, vsSource_delaunay)!
         const fs_delaunay = util.createShader(gl, gl.FRAGMENT_SHADER, fsSource_delaunay)!
@@ -507,8 +484,8 @@ export class EulerFlowLayer {
     async programInit_showing(gl: WebGL2RenderingContext) {
 
         ////////// 2nd::: show uvTexture program
-        const vsSource_showing = (await axios.get('/shaders/07arrowWithMask/showing.vert.glsl')).data
-        const fsSource_showing = (await axios.get('/shaders/07arrowWithMask/showing.frag.glsl')).data
+        const vsSource_showing = (await axios.get('/scratchSomething/eulerWebGL/showing.vert.glsl')).data
+        const fsSource_showing = (await axios.get('/scratchSomething/eulerWebGL/showing.frag.glsl')).data
         const vs_showing = util.createShader(gl, gl.VERTEX_SHADER, vsSource_showing)!
         const fs_showing = util.createShader(gl, gl.FRAGMENT_SHADER, fsSource_showing)!
         this.program_showing = util.createProgram(gl, vs_showing, fs_showing)!
@@ -563,60 +540,60 @@ export class EulerFlowLayer {
     }
 
     async programInit_pointShowing(gl: WebGL2RenderingContext) {
-        // let VSS = (await axios.get('/shaders/07arrowWithMask/point.vert.glsl'))
-        // let FSS = (await axios.get('/shaders/07arrowWithMask/point.frag.glsl'))
-        // let VS = util.createShader(gl, gl.VERTEX_SHADER, VSS.data)!
-        // let FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS.data)!
-        // this.program_point = util.createProgram(gl, VS, FS)!
-        // this.Locations_point['a_pos'] = gl.getAttribLocation(this.program_point, 'a_pos')
-        // this.Locations_point['u_matrix'] = gl.getUniformLocation(this.program_point, 'u_matrix')
-        // this.Locations_point['uvTexture'] = gl.getUniformLocation(this.program_point, 'uvTexture')
-        // console.log(this.Locations_point)
-        let data = this.generateGrid(this.flowExtent, this.gridNumPerRow, this.gridNumPerCol)
+        let VSS = (await axios.get('/scratchSomething/eulerWebGL/point.vert.glsl'))
+        let FSS = (await axios.get('/scratchSomething/eulerWebGL/point.frag.glsl'))
+        let VS = util.createShader(gl, gl.VERTEX_SHADER, VSS.data)!
+        let FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS.data)!
+        this.program_point = util.createProgram(gl, VS, FS)!
+        this.Locations_point['a_pos'] = gl.getAttribLocation(this.program_point, 'a_pos')
+        this.Locations_point['u_matrix'] = gl.getUniformLocation(this.program_point, 'u_matrix')
+        this.Locations_point['uvTexture'] = gl.getUniformLocation(this.program_point, 'uvTexture')
+        console.log(this.Locations_point)
+        this.mapExtent = getMapExtent(this.map)
+        let currentExtent = this.currentExtent(this.flowExtent,this.mapExtent)
+        let data = this.generateGrid(currentExtent, this.gridNumPerRow, this.gridNumPerCol)
+
         this.pointNum = data.gridDataArray.length / 2
 
-        // console.log('init pos data', data)
-        // this.vao_startPoint = gl.createVertexArray()!
-        // gl.bindVertexArray(this.vao_startPoint)
+        console.log('init pos data', data)
+        this.vao_startPoint = gl.createVertexArray()!
+        gl.bindVertexArray(this.vao_startPoint)
         this.startPosBuffer = util.createVBO(gl, data.gridDataArray)
-        // gl.enableVertexAttribArray(this.Locations_point['a_pos'] as number)
-        // gl.bindBuffer(gl.ARRAY_BUFFER, this.startPosBuffer)
-        // gl.vertexAttribPointer(
-        //     this.Locations_point['a_pos'] as number,
-        //     2,
-        //     gl.FLOAT,
-        //     false,
-        //     0,
-        //     0
-        // )
-        // gl.bindVertexArray(null)
+        gl.enableVertexAttribArray(this.Locations_point['a_pos'] as number)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.startPosBuffer)
+        gl.vertexAttribPointer(
+            this.Locations_point['a_pos'] as number,
+            2,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.bindVertexArray(null)
 
-        // this.vao_endPoint = gl.createVertexArray()!
-        // gl.bindVertexArray(this.vao_endPoint)
-        // console.log(' init endpos buffer');
-
-        // this.endPosBuffer = util.createVBO(gl, data.gridDataArray)
-        // gl.enableVertexAttribArray(this.Locations_point['a_pos'] as number)
-        // gl.bindBuffer(gl.ARRAY_BUFFER, this.endPosBuffer)
-        // gl.vertexAttribPointer(
-        //     this.Locations_point['a_pos'] as number,
-        //     2,
-        //     gl.FLOAT,
-        //     false,
-        //     0,
-        //     0
-        // )
-        // gl.bindVertexArray(null)
+        this.vao_endPoint = gl.createVertexArray()!
+        gl.bindVertexArray(this.vao_endPoint)
+        console.log(' init endpos buffer');
 
         this.endPosBuffer = util.createVBO(gl, data.gridDataArray)
-        gl.bindBuffer(gl.ARRAY_BUFFER, null)
+        gl.enableVertexAttribArray(this.Locations_point['a_pos'] as number)
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.endPosBuffer)
+        gl.vertexAttribPointer(
+            this.Locations_point['a_pos'] as number,
+            2,
+            gl.FLOAT,
+            false,
+            0,
+            0
+        )
+        gl.bindVertexArray(null)
 
     }
 
     async programInit_simulate(gl: WebGL2RenderingContext) {
 
-        const VSS = (await axios.get('/shaders/07arrowWithMask/simulate.vert.glsl'))
-        const FSS = (await axios.get('/shaders/07arrowWithMask/simulate.frag.glsl'))
+        const VSS = (await axios.get('/scratchSomething/eulerWebGL/simulate.vert.glsl'))
+        const FSS = (await axios.get('/scratchSomething/eulerWebGL/simulate.frag.glsl'))
         const VS = util.createShader(gl, gl.VERTEX_SHADER, VSS.data)!
         const FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS.data)!
         const outVaryings = ['out_endPos']
@@ -655,8 +632,8 @@ export class EulerFlowLayer {
     }
 
     async programInit_segmentShowing(gl: WebGL2RenderingContext) {
-        const vss = (await axios.get('/shaders/07arrowWithMask/segment.vert.glsl'))
-        const fss = (await axios.get('/shaders/07arrowWithMask/segment.frag.glsl'))
+        const vss = (await axios.get('/scratchSomething/eulerWebGL/segment.vert.glsl'))
+        const fss = (await axios.get('/scratchSomething/eulerWebGL/segment.frag.glsl'))
         const vs = util.createShader(gl, gl.VERTEX_SHADER, vss.data)!
         const fs = util.createShader(gl, gl.FRAGMENT_SHADER, fss.data)!
         this.program_segmentShowing = util.createProgram(gl, vs, fs)!
@@ -702,8 +679,8 @@ export class EulerFlowLayer {
     }
 
     async programInit_arrowShowing(gl: WebGL2RenderingContext) {
-        const vss = (await axios.get('/shaders/07arrowWithMask/arrow.vert.glsl'))
-        const fss = (await axios.get('/shaders/07arrowWithMask/arrow.frag.glsl'))
+        const vss = (await axios.get('/scratchSomething/eulerWebGL/arrow.vert.glsl'))
+        const fss = (await axios.get('/scratchSomething/eulerWebGL/arrow.frag.glsl'))
         const vs = util.createShader(gl, gl.VERTEX_SHADER, vss.data)!
         const fs = util.createShader(gl, gl.FRAGMENT_SHADER, fss.data)!
         this.program_arrowShowing = util.createProgram(gl, vs, fs)!
@@ -796,7 +773,7 @@ export class EulerFlowLayer {
         // console.log('this.uvResourcePointer', this.uvResourcePointer)
         // console.log('globalFrames', this.globalFrames)
 
-        this.getVelocityData(`/flowResource/bin/uv_${this.uvResourcePointer}.bin`).then(data => {
+        this.getVelocityData(this.prefix + this.uvUrls[this.uvResourcePointer]).then(data => {
             this.velocityData_Array[updateIndex] = data
         })
     }
@@ -826,20 +803,35 @@ export class EulerFlowLayer {
             gridPerRow: this.gridNumPerRow,
             gridPerCol: this.gridNumPerCol,
             stop: this.stop,
+            steady: this.steady,
+            color: `rgb(${this.arrowColor[0]}, ${this.arrowColor[1]}, ${this.arrowColor[2]})`
         }
         this.gui.domElement.style.position = 'absolute'
-        this.gui.domElement.style.top = '2vh'
+        this.gui.domElement.style.top = '15vh'
         this.gui.domElement.style.right = '1vw'
-        this.gui.add(parameters, 'stop', false).onChange(value => this.stop = value)
-        this.gui.add(parameters, 'aaWidth', 0, 5, 0.1).onChange(value => this.aaWidth = value)
-        this.gui.add(parameters, 'fillWidth', 0, 5, 0.1).onChange(value => this.fillWidth = value)
-        this.gui.add(parameters, 'framePerStep', 30, 240, 10).onChange(value => this.framePerStep = value)
-        this.gui.add(parameters, 'velocityFactor', 1, 1000, 1).onChange(value => this.velocityFactor = value)
-        this.gui.add(parameters, 'arrowAngle', 0, 90, 1).onChange(value => this.arrowAngle = value)
-        this.gui.add(parameters, 'arrowLength', 1, 30, 1).onChange(value => this.arrowLength = value)
-        this.gui.add(parameters, 'gridPerCol', 10, 200, 1).onChange(value => { this.gridNumPerCol = value; restart() })
-        this.gui.add(parameters, 'gridPerRow', 10, 200, 1).onChange(value => { this.gridNumPerRow = value; restart() })
-        this.gui.open()
+        this.gui.add(parameters, 'stop', false).name('停止').onChange(value => this.stop = value);
+        this.gui.add(parameters,'steady', false).name('稳态流场').onChange(value => this.steady = value);
+        // this.gui.add(parameters, 'aaWidth', 0, 5, 0.1).name('反走样宽度').onChange(value => this.aaWidth = value);
+        this.gui.add(parameters, 'fillWidth', 0, 5, 0.1).name('填充宽度').onChange(value => this.fillWidth = value);
+        this.gui.add(parameters, 'arrowAngle', 0, 90, 1).name('箭头角度').onChange(value => this.arrowAngle = value);
+        this.gui.add(parameters, 'arrowLength', 1, 30, 1).name('箭头长度').onChange(value => this.arrowLength = value);
+        this.gui.addColor(parameters, 'color').name('箭头颜色').onChange(value => { this.arrowColor = parseRGB(value) });
+        this.gui.add(parameters, 'gridPerRow', 10, 200, 1).name('格网行数').onChange(value => { this.gridNumPerRow = value; restart() });
+        this.gui.add(parameters, 'gridPerCol', 10, 200, 1).name('格网列数').onChange(value => { this.gridNumPerCol = value; restart() });
+        this.gui.add(parameters, 'framePerStep', 30, 240, 10).name('帧数控制').onChange(value => this.framePerStep = value);
+        this.gui.add(parameters, 'velocityFactor', 1, 1000, 1).name('速度因子').onChange(value => this.velocityFactor = value);
+
+        const parseRGB = (rgbString) => {
+            const regex = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/;
+            const match = rgbString.match(regex);
+            if (match) {
+                const [_, r, g, b] = match;
+                return [parseInt(r), parseInt(g), parseInt(b)];
+            } else {
+                throw new Error('Invalid RGB string');
+            }
+        }
+        this.gui.open();
     }
 
     printBuffer(gl: WebGL2RenderingContext, buffer: WebGLBuffer, size: number, label: string = '') {
@@ -869,7 +861,7 @@ export class EulerFlowLayer {
         }
         // console.log('new grid data!  length::', gridDataArray.length / 2)
         return {
-            gridDataArray
+            gridDataArray,
         }
     }
 
@@ -878,7 +870,7 @@ export class EulerFlowLayer {
         if (zoom <= 10) return 800;
         if (zoom >= 16) return 15;
         const data = [
-            { zoom: 10, speedFactor: 800 },
+            { zoom: 10, speedFactor: 1000 },
             { zoom: 12, speedFactor: 350 },
             { zoom: 14, speedFactor: 70 },
             { zoom: 16, speedFactor: 15 }
@@ -921,6 +913,16 @@ export class EulerFlowLayer {
                 Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360))) /
             360;
         return [x, y];
+    }
+    currentExtent(flowExtent: Array<number>, mapExtent: Array<number>) {
+        let lonMin = Math.max(flowExtent[0], mapExtent[0]);
+        let latMin = Math.max(flowExtent[1], mapExtent[1]);
+        let lonMax = Math.min(flowExtent[2], mapExtent[2]);
+        let latMax = Math.min(flowExtent[3], mapExtent[3]);
+        if (lonMin > lonMax || latMin > latMax) {
+            return flowExtent
+        }
+        return [lonMin, latMin, lonMax, latMax];
     }
 }
 function getMapExtent(map: mapbox.Map) {
@@ -1016,8 +1018,8 @@ export const simpleArrow = async () => {
     const fs = util.createShader(gl, gl.FRAGMENT_SHADER, fss)!
     const program = util.createProgram(gl, vs, fs)!
 
-    const vss2 = (await axios.get('/shaders/07arrowWithMask/demoArrow.vert.glsl')).data
-    const fss2 = (await axios.get('/shaders/07arrowWithMask/demoArrow.frag.glsl')).data
+    const vss2 = (await axios.get('/scratchSomething/eulerWebGL/demoArrow.vert.glsl')).data
+    const fss2 = (await axios.get('/scratchSomething/eulerWebGL/demoArrow.frag.glsl')).data
     const vs2 = util.createShader(gl, gl.VERTEX_SHADER, vss2)!
     const fs2 = util.createShader(gl, gl.FRAGMENT_SHADER, fss2)!
     const program2 = util.createProgram(gl, vs2, fs2)!

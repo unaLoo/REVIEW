@@ -20,8 +20,7 @@ void main() {
     //     return;
     // }
 
-    // fragColor = vec4(color, 0.6f);
-    fragColor = vec4(color) * 0.6;
-
+    fragColor = vec4(color);
+    // fragColor = vec4(0);
     // fragColor = texture(showTexture, v_texCoord) * 0.5;
 }

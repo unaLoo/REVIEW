@@ -118,14 +118,18 @@ export function createIBO(gl: WebGL2RenderingContext, data: Array<number>) {
 }
 
 
-export function createCanvasSizeTexture(gl: WebGL2RenderingContext) {
+export function createCanvasSizeTexture(gl: WebGL2RenderingContext, type = 'RGBA8') {
     const texture = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, gl.canvas.width, gl.canvas.height, 0, gl.RG, gl.FLOAT, null);
+    if (type === 'RGBA8') {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.canvas.width, gl.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    } else if (type === 'RG32F') {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG32F, gl.canvas.width, gl.canvas.height, 0, gl.RG, gl.FLOAT, new Float32Array(gl.canvas.width * gl.canvas.height * 2).fill(0));
+    }
     return texture
 }
 
@@ -352,7 +356,7 @@ export class M2 {
     constructor(data: Array<number> = [1, 0, 0, 1]) {
         this.value = data
     }
-    static rotateMat(angle: number):M2{
+    static rotateMat(angle: number): M2 {
         let rad = angle * Math.PI / 180
         let s = Math.sin(rad)
         let c = Math.cos(rad)

@@ -11,5 +11,7 @@ out vec4 fragColor;
 
 void main() {
     vec4 color = texture(showTexture, v_texCoord);
+    // fragColor = vec4(color.rgb, color.a * fadeFactor);
     fragColor = color * fadeFactor;
+
 }

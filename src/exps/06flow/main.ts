@@ -97,7 +97,7 @@ class FlowLayer {
     particelNum: number = 65536
     dropRate: number = 0.003
     dropRateBump: number = 0.001
-    velocityFactor: number = 1000.0
+    velocityFactor: number = 100.0
     fadeFactor: number = 0.97
     aaWidth: number = 1.0
     fillWidth: number = 3.0
@@ -170,9 +170,9 @@ class FlowLayer {
 
         const idle = () => {
             this.programControl['clear_fbo'] = true
-            this.programControl['delaunay_showing'] = true
+            this.programControl['delaunay_showing'] = false
             // this.programControl['historyAndSegment'] = false
-            // this.programControl['onlySegment'] = true
+            this.programControl['onlySegment'] = true
         }
 
         const restart = () => {
@@ -273,9 +273,10 @@ class FlowLayer {
 
 
 
-            ////////// 3rd::: simulate program to get new position
+            // ////////// 3rd::: simulate program to get new position
             if (this.programControl['simulate']) {
                 gl.enable(gl.RASTERIZER_DISCARD)
+
                 gl.useProgram(this.program_simulate!)
                 gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
                 gl.bindTransformFeedback(gl.TRANSFORM_FEEDBACK, this.nowXFO_simu!)
@@ -312,12 +313,13 @@ class FlowLayer {
                 // gl.enable(gl.BLEND);
                 // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
                 gl.bindFramebuffer(gl.FRAMEBUFFER, this.nowRenderFBO!) // render to frame buffer
+                gl.clearColor(0, 0, 0, 0)
+                gl.clear(gl.COLOR_BUFFER_BIT)
                 // gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowsing_1) // render to trajectoryTexture_1
                 gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
 
                 gl.useProgram(this.program_historyShowing!)
-                gl.clearColor(0, 0, 0, 0)
-                gl.clear(gl.COLOR_BUFFER_BIT)
+
                 gl.activeTexture(gl.TEXTURE0)
                 gl.bindTexture(gl.TEXTURE_2D, this.nowHistoryTrajectoryTexture!) // history info in trajectoryTexture_1
                 gl.uniform1i(this.Locations_historyShowing['showTexture'] as WebGLUniformLocation, 0)
@@ -348,6 +350,8 @@ class FlowLayer {
             }
 
             if (this.programControl['onlySegment']) {
+                // gl.clearColor(0, 1, 0, 1)
+                // gl.clear(gl.COLOR_BUFFER_BIT)
                 gl.bindFramebuffer(gl.FRAMEBUFFER, this.nowRenderFBO!) // render to frame buffer
                 // gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_1) // render to trajectoryTexture_1
 
@@ -366,8 +370,7 @@ class FlowLayer {
                 gl.bindVertexArray(this.nowSegRenderVAO)
                 // gl.bindVertexArray(this.vao_segmentShowing1)
                 // gl.drawArraysInstanced(gl.LINES, 0, 2, this.particelNum)
-                gl.clearColor(0, 0, 0, 0)
-                gl.clear(gl.COLOR_BUFFER_BIT)
+
                 gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.particelNum) //with anti-aliasing
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null)
             }
@@ -377,6 +380,7 @@ class FlowLayer {
                 gl.clearColor(0, 0, 0, 0)
                 gl.clear(gl.COLOR_BUFFER_BIT)
                 gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
                 gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_2) // render to trajectoryTexture_1
                 gl.clearColor(0, 0, 0, 0)
                 gl.clear(gl.COLOR_BUFFER_BIT)
@@ -407,63 +411,22 @@ class FlowLayer {
             if (this.programControl['final_showing']) {
                 gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
                 gl.useProgram(this.program_finalShowing!)
-                // gl.enable(gl.BLEND);
-                // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
                 gl.activeTexture(gl.TEXTURE0)
                 gl.bindTexture(gl.TEXTURE_2D, this.nowTotalTrajectoryTexture!) // history info in trajectoryTexture_1
                 gl.uniform1i(this.Locations_finalShowing['showTexture'] as WebGLUniformLocation, 0)
                 gl.activeTexture(gl.TEXTURE1)
                 gl.bindTexture(gl.TEXTURE_2D, this.uvTexture!)
                 gl.uniform1i(this.Locations_finalShowing['uvTexture'] as WebGLUniformLocation, 1)
-                // gl.enable(gl.BLEND);
-                // gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+                gl.enable(gl.BLEND);
+                gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
                 gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
             }
-
         }
         else {
-            console.log('polygon layer not readydd')
+            console.log('layer not readydd')
         }
         this.map!.triggerRepaint()
-
-        // [
-        //     120.28315509582643,
-        //     31.787431142800642,
-        //     120.936688638862,
-        //     32.32568590724074
-        // ]
-
-        // [
-        //     120.04486083984375,
-        //     31.757211685180664,
-        //     121.0000991821289,
-        //     32.08267593383789
-        // ]
-        window.addEventListener('keydown', (e) => {
-            if (e.key == 'd') {
-                this.printBuffer(gl, this.pposBuffer_simulate_1!, this.particelNum * 4);
-            }
-            else if (e.key == 'f') {
-                this.printBuffer(gl, this.pposBuffer_simulate_2!, this.particelNum * 4);
-            }
-            else if (e.key == 'q') {
-                console.log('mapExtent', this.mapExtent)
-                console.log('flowExtent', this.flowExtent)
-            }
-            else if (e.key == 'w') {
-                let res = this.printBuffer(gl, this.velocityBuffer1!, this.particelNum);
-                let maxSpeed = 0
-                for (let i = 0; i < this.particelNum; i++) {
-                    let speed = res[i]
-
-                    if (speed > maxSpeed) {
-                        maxSpeed = speed
-                    }
-                }
-                console.log('maxSpeed', maxSpeed)
-            }
-        })
-
     }
 
     async programInit_delaunay(gl: WebGL2RenderingContext) {
@@ -546,7 +509,7 @@ class FlowLayer {
         gl.bindVertexArray(null)
 
         ///// frame buffer
-        this.uvTexture = util.createCanvasSizeTexture(gl)
+        this.uvTexture = util.createCanvasSizeTexture(gl, "RG32F")
 
         this.fbo_delaunay = gl.createFramebuffer()!
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_delaunay)
@@ -786,13 +749,13 @@ class FlowLayer {
         const FS = util.createShader(gl, gl.FRAGMENT_SHADER, FSS)!
         this.program_historyShowing = util.createProgram(gl, VS, FS)!
 
-        this.trajectoryTexture_1 = util.createCanvasSizeTexture(gl)
+        this.trajectoryTexture_1 = util.createCanvasSizeTexture(gl, "RGBA8")
         this.fbo_historyShowing_1 = gl.createFramebuffer()!
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_1)
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.trajectoryTexture_1, 0)
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
-        this.trajectoryTexture_2 = util.createCanvasSizeTexture(gl)
+        this.trajectoryTexture_2 = util.createCanvasSizeTexture(gl, "RGBA8")
         this.fbo_historyShowing_2 = gl.createFramebuffer()!
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo_historyShowing_2)
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.trajectoryTexture_2, 0)
@@ -972,7 +935,7 @@ class FlowLayer {
 
 export const initMap = () => {
     const map = new mapbox.Map({
-        style: "mapbox://styles/nujabesloo/clxk678ma00ch01pdd2lfgps2",
+        style: "mapbox://styles/mapbox/light-v11",
         center: [120.980697, 31.684162], // [ 120.556596, 32.042607 ], //[ 120.53525158459905, 31.94879239156117 ], // 120.980697, 31.684162
         // projection: 'mercator',
         accessToken: 'pk.eyJ1IjoibnVqYWJlc2xvbyIsImEiOiJjbGp6Y3czZ2cwOXhvM3FtdDJ5ZXJmc3B4In0.5DCKDt0E2dFoiRhg3yWNRA',

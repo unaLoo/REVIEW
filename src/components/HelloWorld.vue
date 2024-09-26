@@ -6,10 +6,11 @@ import mapbox from 'mapbox-gl';
 // import { main, main3d } from '../exps/03transform/main'
 // import { initMap } from '../exps/04polygon/main'
 // import { main } from '../exps/05XFBO/main'
-import { initMap } from '../exps/06flow/mainWithMask'
+// import { initMap } from '../exps/06flow/mainWithMask'
 // import { initMap, EulerFlowLayer } from '../exps/07arrow/main'
 // import { initMap } from '../exps/07arrow/withMask'
 // import { main } from '../exps/培训案例/pulsing';
+import { initMap } from '../exps/08invasion/invasion';
 
 const nowZoom = ref(0)
 const percentage = ref(0)
@@ -75,6 +76,7 @@ onMounted(() => {
   height: 100vh;
   margin: 0;
   padding: 0;
+  // overflow: hidden;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -93,8 +95,7 @@ onMounted(() => {
     width: 100%;
     height: 100%;
     z-index: 0;
-    background-color: transparent;
-    background-color: aqua;
+    background-color: #ffffff;
   }
 
   #zoom {

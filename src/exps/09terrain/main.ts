@@ -1,14 +1,5 @@
 import mapboxgl from "mapbox-gl"
 
-
-
-
-
-
-
-
-
-
 export const initMap = () => {
     const map = new mapboxgl.Map({
         style: "mapbox://styles/nujabesloo/clxk678ma00ch01pdd2lfgps2",

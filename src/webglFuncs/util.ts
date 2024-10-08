@@ -43,6 +43,13 @@ export function createProgram2(gl: WebGL2RenderingContext, vs: WebGLShader, fs: 
     gl.deleteProgram(prg);
 }
 
+export function createProgramFromSource(gl: WebGL2RenderingContext, vs: string, fs: string) {
+    const vShader = createShader(gl, gl.VERTEX_SHADER, vs)!
+    const fShader = createShader(gl, gl.FRAGMENT_SHADER, fs)!
+    const program = createProgram(gl, vShader, fShader)
+    return program
+}
+
 export function resizeCanvasToDisplaySize(canvas: HTMLCanvasElement) {
     // 获取浏览器显示的画布的CSS像素值
     const displayWidth = canvas.clientWidth
@@ -78,7 +85,7 @@ export async function loadImageBitmap(url: string) {
     });
 }
 
-export function createEmptyTexture(gl: WebGL2RenderingContext) {
+export function createEmptyTexture(gl: WebGL2RenderingContext, width: any = null, height: any = null) {
 
     const texture = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, texture)
@@ -87,6 +94,9 @@ export function createEmptyTexture(gl: WebGL2RenderingContext) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 
+    if (width && height) {
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    }
     return texture
 }
 
@@ -103,20 +113,41 @@ export function initGL(canvasId: string) {
     return gl
 }
 
-export function createVBO(gl: WebGL2RenderingContext, data: Array<number>) {
+export function createVBO(gl: WebGL2RenderingContext, data: Array<number> | Float32Array) {
     const buffer = gl.createBuffer()!
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW)
+    if (data instanceof Array)
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW)
+    else
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW)
     return buffer
 }
 
-export function createIBO(gl: WebGL2RenderingContext, data: Array<number>) {
-    const indexBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
-    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(data), gl.STATIC_DRAW);
-    return indexBuffer
+///// default float32
+export function updateVBO(gl: WebGL2RenderingContext, buffer: WebGLBuffer, data: Array<number> | Float32Array) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
+    if (data instanceof Array)
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW)
+    else
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW)
 }
 
+export function createIBO(gl: WebGL2RenderingContext, data: Array<number> | Uint16Array) {
+    const indexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+    if (data instanceof Array)
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(data), gl.STATIC_DRAW)
+    else
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data, gl.STATIC_DRAW)
+    return indexBuffer
+}
+export function updateIBO(gl: WebGL2RenderingContext, buffer: WebGLBuffer, data: Array<number> | Uint16Array) {
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer)
+    if (data instanceof Array)
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(data), gl.STATIC_DRAW)
+    else
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data, gl.STATIC_DRAW)
+}
 
 export function createCanvasSizeTexture(gl: WebGL2RenderingContext, type = 'RGBA8') {
     const texture = gl.createTexture()

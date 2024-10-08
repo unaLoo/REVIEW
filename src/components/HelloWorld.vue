@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
-import mapbox from 'mapbox-gl';
+// import mapbox from 'mapbox-gl';
 // import { prepare,instansDraw } from '../exps/01triangle/main';
 // import { main, main2 } from '../exps/02texture/main'
 // import { main, main3d } from '../exps/03transform/main'
@@ -11,9 +11,11 @@ import mapbox from 'mapbox-gl';
 // import { initMap } from '../exps/07arrow/withMask'
 // import { main } from '../exps/培训案例/pulsing';
 import { initMap } from '../exps/08invasion/invasion';
+// import { initMap } from '../exps/terrain/main.js'
 
-const nowZoom = ref(0)
-const percentage = ref(0)
+
+// const nowZoom = ref(0)
+// const percentage = ref(0)
 // let map: any
 
 onMounted(() => {

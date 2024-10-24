@@ -1,205 +1,21 @@
 import mapboxgl, { MercatorCoordinate } from "mapbox-gl";
 import 'mapbox-gl/dist/mapbox-gl.css'
 import * as Wuti from '../../webglFuncs/util'
-import tilebelt from '@mapbox/tilebelt'
 import fs from './shader/tileDraw.frag.glsl'
 import vs from './shader/tileDraw.vert.glsl'
 import * as dat from 'dat.gui'
 import ScratchMap from './scratchMap'
-import * as THREE from 'three'
-import { mat4 } from "gl-matrix";
-
-export default class InvasionLayer {
-
-    id: string = 'invasion-layer';
-    map: mapboxgl.Map | null = null;
-    renderingMode: string = '2d';
-    type: 'custom' = 'custom';
-
-    source: string = '';
-    tileSource: any;
-    sourceCache: any;
-
-    gl: WebGL2RenderingContext | null = null;
-    rectProgram: WebGLProgram | null = null;
-    matLocation: WebGLUniformLocation | null = null;
-    cvSizeLocation: WebGLUniformLocation | null = null;
-    sizeLocation: WebGLUniformLocation | null = null;
-    uColorLocation: WebGLUniformLocation | null = null;
-    aPosLocation: number | null = null;
-    posBuffer: WebGLBuffer | null = null;
-    vao: WebGLVertexArrayObject | null = null;
-
-    ready: boolean = false;
-
-    constructor(id: string) {
-        this.map = null;
-        this.gl = null;
-        this.id = id;
-        this.tileSource = null;
-        this.source = this.id + 'Source'
-        this.type = 'custom';
-        this.renderingMode = '3d';
-    }
-
-    onAdd(map: mapboxgl.Map, gl: WebGL2RenderingContext) {
-        this.map = map;
-        this.gl = gl;
-
-        this.createEmptySource();
-
-        let vs = `#version 300 es
-        in vec2 a_pos;
-        uniform mat4 u_matrix;
-        uniform vec2 canvasSize;
-        uniform float size;
-        // const vec2 pos[4] = vec2[4](vec2(0.0,0.0), vec2(1.0, 0.0), vec2(1.0, 1.0), vec2(0.0, 1.0));
-        void main(){
-            // vec2 vertexPos = pos[gl_VertexID] * size;
-            vec2 vertexPos = a_pos;
-            gl_Position = u_matrix * vec4(vertexPos, 0.0, 1.0);
-        }
-        `
-        let fs = `#version 300 es
-        precision highp float;
-        uniform vec3 color;
-        out vec4 FragColor;
-        void main() {
-            FragColor = vec4(color/255.0, 0.3);
-        }
-        `
-        const vShader = Wuti.createShader(gl, gl.VERTEX_SHADER, vs)!
-        const fShader = Wuti.createShader(gl, gl.FRAGMENT_SHADER, fs)!
-        this.rectProgram = Wuti.createProgram(gl, vShader, fShader)!;
-        this.matLocation = gl.getUniformLocation(this.rectProgram, 'u_matrix')!
-        this.cvSizeLocation = gl.getUniformLocation(this.rectProgram, 'canvasSize')!
-        this.sizeLocation = gl.getUniformLocation(this.rectProgram, 'size')!
-        this.uColorLocation = gl.getUniformLocation(this.rectProgram, 'color')!
-        this.aPosLocation = gl.getAttribLocation(this.rectProgram, 'a_pos')!
-
-        this.posBuffer = Wuti.createVBO(gl, [])
-        this.vao = gl.createVertexArray()!;
-        gl.bindVertexArray(this.vao);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.posBuffer);
-        gl.enableVertexAttribArray(this.aPosLocation);
-        gl.vertexAttribPointer(this.aPosLocation, 2, gl.FLOAT, false, 0, 0);
-        gl.bindVertexArray(null);
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
-        this.ready = true;
-    }
-
-
-    render(gl: WebGL2RenderingContext, matrix: number[]) {
-
-        console.log('render invasion layer');
-        console.log(this.tilesInViewport)
-
-        if (this.ready)
-            this.tickLogic(gl, matrix)
-
-
-    }
-
-    get tilesInViewport() {
-        return (this.map as any).style["_sourceCaches"][`other:${this.source}`]["_tiles"]
-    }
-    get theSourceCache() {
-        return (this.map as any).style["_sourceCaches"]
-    }
-
-    createEmptySource() {
-        const RECT = {
-            "type": "FeatureCollection",
-            "features": [
-                {
-                    "type": "Feature",
-                    "properties": {},
-                    "geometry": {
-                        "coordinates": [
-                            [
-                                [
-                                    -180.0,
-                                    85.5
-                                ],
-                                [
-                                    -180.0,
-                                    -85.5
-                                ],
-                                [
-                                    180.0,
-                                    -85.5
-                                ],
-                                [
-                                    180.0,
-                                    85.5
-                                ],
-                                [
-                                    -180.0,
-                                    85.5
-                                ]
-                            ]
-                        ],
-                        "type": "Polygon"
-                    }
-                }
-            ]
-        }
-        this.map?.addSource(this.source, {
-            type: 'geojson',
-            data: RECT as any
-        })
-        this.map?.addLayer({
-            id: this.id + '-proxy',
-            type: 'fill',
-            source: this.source,
-            paint: {
-                'fill-color': '#000000',
-                'fill-opacity': 0.0
-            }
-        })
-
-        this.tileSource = this.map?.getSource(this.source);
-
-    }
-
-    tickLogic(gl: WebGL2RenderingContext, matrix: number[]) {
-
-        gl.useProgram(this.rectProgram);
-        gl.uniformMatrix4fv(this.matLocation, false, matrix);
-        gl.uniform2fv(this.cvSizeLocation, [1, 1]);
-        gl.uniform1f(this.sizeLocation, 0.3);
-
-        let tiles = this.tilesInViewport;
-        let keys = Object.keys(tiles);
-        for (let i = 0; i < keys.length; i++) {
-            let tile = tiles[keys[i]];
-            let [x, y, z] = [tile.tileID.canonical.x, tile.tileID.canonical.y, tile.tileID.canonical.z]
-            const polygon = tilebelt.tileToGeoJSON([x, y, z]);
-            const vertex = tilePolygonToVertex(polygon);
-            gl.uniform3fv(this.uColorLocation, [233, 0, 0]);
-            gl.bindBuffer(gl.ARRAY_BUFFER, this.posBuffer);
-            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertex), gl.STATIC_DRAW);
-            gl.bindVertexArray(this.vao);
-            gl.drawArrays(gl.LINE_STRIP, 0, 4);
-        }
-
-
-    }
-
-
-
-}
 
 
 type RasterTileOption = {
-    type: 'raster',
+    type: 'raster' | 'raster-dem',
     tiles: string[],
 }
 type PlainSubdivisionInfo = {
-    uvData: Float32Array,
     vertexData: Float32Array,
-    indexData: Uint16Array
+    indexData: Uint16Array,
+    linesIndexData: Uint16Array,
+    skirtIndexOffset: number,
 }
 type controller = {
     exaggeration: number,
@@ -209,8 +25,10 @@ type controller = {
 const MZSVIEWCONFIG = {
     center: [120.53794466757358, 32.03061107103058],
     zoom: 16.096017911120207,
-    pitch: 10.71521535597063,
+    // pitch: 10.71521535597063,
+    pitch: 0,
 }
+
 
 export class TileDrivenCustomLayer {
 
@@ -224,36 +42,39 @@ export class TileDrivenCustomLayer {
 
     //////////// CONST /////////////
     TILE_SIZE = 512;
-    WIDTH_SEGMENTS = 10;
-    HEIGHT_SEGMENTS = 10;
+    SEGMENTS = 128;
 
     EXAGERATION = 500;
     CONTROLLER: controller = {
-        exaggeration: 500,
+        exaggeration: this.EXAGERATION,
         mode: 'fill',
     }
     ////////////////////////////////CONST
 
 
     ///////////// TILE /////////////////
-    source: string = '';
-    tileSource: any;
-    sourceCache: any;
-
+    // terrain tile
     inputTileSourceID: string = '';
-    inputTileSource: any; // mapbox source obj
     inputTileSourceCache: any; // mapbox source cache obj
     inputTileOption: RasterTileOption | null = null;
     proxyLayerID: string = '';
+
+    // image tile
+    imageTileSourceID: string = '';
+    imageTileSourceCache: any; // mapbox source cache obj
+    imageTileOption: RasterTileOption | null = null;
+
+
+
 
     globalPlainInfo: PlainSubdivisionInfo | null = null;
     ///////////////////////////////TILE
 
 
     /////////// gl ///////////////
-    uvBuffer: WebGLBuffer | null = null;
     vertexBuffer: WebGLBuffer | null = null;
     indexBuffer: WebGLBuffer | null = null;
+    lineIndexBuffer: WebGLBuffer | null = null;
 
     inputTexture: WebGLTexture | null = null;
     outputTexture: WebGLTexture | null = null;
@@ -266,21 +87,17 @@ export class TileDrivenCustomLayer {
 
     ////////////////////////////gl
 
-
-
-
-
-
-
-
     ready: boolean = false;
 
-    constructor(id: string, tileOption: RasterTileOption) {
+    constructor(id: string, tileOption: RasterTileOption, imageTileOption: RasterTileOption | null = null) {
         this.id = id;
         this.inputTileSourceID = this.id + '-InputSource'
-        this.inputTileSource = null
         this.inputTileOption = tileOption
         this.proxyLayerID = this.id + '-ProxyLayer'
+
+        // if (!imageTileOption) return
+        // this.imageTileSourceID = this.id + '-ImageSource'
+        // this.imageTileOption = imageTileOption
 
     }
 
@@ -292,52 +109,31 @@ export class TileDrivenCustomLayer {
 
         this.createProxyLayer();
 
-        let res = this.planeSubdivision(this.TILE_SIZE, this.TILE_SIZE, this.WIDTH_SEGMENTS, this.HEIGHT_SEGMENTS)
+        let res = this.planeSubdivision3(8192.0, this.SEGMENTS + 1)
         this.globalPlainInfo = {
-            uvData: new Float32Array(res.uvs),
             vertexData: new Float32Array(res.vertices),
             indexData: new Uint16Array(res.indices),
+            linesIndexData: new Uint16Array(res.linesIndices),
+            skirtIndexOffset: res.skirtIndicesOffset
         }
 
         this.createGLProgram();
 
+        window.addEventListener('keydown', e => {
+            if (e.key === 'f') {
+                console.log(this.map?.style["_otherSourceCaches"])
+            }
+            if (e.key === 'u') {
+                // this.map?.style["_otherSourceCaches"][this.inputTileSourceID]._update()
+                this.inputTileSourceCache.update(this.map.painter.transform)
+            }
+        })
 
         this.ready = true;
     }
 
 
     render(gl: WebGL2RenderingContext, matrix: number[]) {
-
-
-        // const viewProjectionMatrix = new Float32Array(matrix);
-        // const transform = this.map.transform;
-        // const camera = this.map.style.camera;
-        // const projectionMatrix = new Float32Array(16),
-        //     projectionMatrixI = new Float32Array(16),
-        //     viewMatrix = new Float32Array(16),
-        //     viewMatrixI = new Float32Array(16);
-
-        // // from https://github.com/mapbox/mapbox-gl-js/blob/master/src/geo/transform.js#L556-L568
-        // const halfFov = transform._fov / 2;
-        // const groundAngle = Math.PI / 2 + transform._pitch;
-        // const topHalfSurfaceDistance = Math.sin(halfFov) * transform.cameraToCenterDistance / Math.sin(Math.PI - groundAngle - halfFov);
-        // const furthestDistance = Math.cos(Math.PI / 2 - transform._pitch) * topHalfSurfaceDistance + transform.cameraToCenterDistance;
-        // const farZ = furthestDistance * 1.01;
-
-        // mat4.perspective(projectionMatrix, transform._fov, transform.width / transform.height, 1, farZ);
-        // mat4.invert(projectionMatrixI, projectionMatrix);
-        // mat4.multiply(viewMatrix, projectionMatrixI, viewProjectionMatrix);
-        // mat4.invert(viewMatrixI, viewMatrix);
-
-        // camera.projectionMatrix = new THREE.Matrix4().fromArray(<any>projectionMatrix);
-
-        // camera.matrix = new THREE.Matrix4().fromArray(<any>viewMatrixI);
-        // // camera.matrix.decompose(camera.position, camera.quaternion, camera.scale);
-
-        // console.log(camera.matrix, matrix)
-
-        // console.log(this.map.transform)
-
 
         if (!this.ready) return
         // this.map.update()
@@ -348,65 +144,76 @@ export class TileDrivenCustomLayer {
         // this.map.triggerRepaint()
     }
 
+    // createImage() {
 
+    //     this.map.addSource(this.imageTileSourceID, this.imageTileOption)
+
+    //     this.imageTileSourceCache = this.map?.style["_otherSourceCaches"][this.imageTileSourceID]
+
+    //     this.map.getSource(this.imageTileSourceID).on('data', () => {
+    //         console.log('image tile data update!')
+    //     })
+
+    // }
 
     createProxyLayer() {
 
+        // proxy layer --> triggle the update source-data and use the tile-management
         this.map?.addSource(this.inputTileSourceID, this.inputTileOption!)
         this.map?.addLayer({
-            id: this.proxyLayerID,
-            source: this.inputTileSourceID,
+            id: 'ras',
             type: 'raster',
-            paint: { "raster-opacity": 0.02 }
+            source: this.inputTileSourceID,
+            paint: {
+                'raster-opacity': 0.01,
+            }
         })
 
 
-        this.inputTileSource = this.map.getSource(this.inputTileSourceID)
-        this.inputTileSourceCache = this.map_style_sourceCaches[this.inputTileSourceID]
+        // this.map?.addLayer({
+        //     id: this.proxyLayerID,
+        //     type: 'custom',
+        //     onAdd: () => { },
+        //     render: () => { },
+        // })
+        // this.map.style._layers[this.proxyLayerID].source = this.inputTileSourceID;
 
-        // if (this.inputTileSource) {
-        //     this.inputTileSourceCache = this.map_style_sourceCaches[this.inputTileSourceID]
-        //     // input tile 更新的回调
-        //     this.inputTileSource.on('data', (e: any) => {
-        //         // console.log('tile source update!! do something!!', e)
 
-        //         // do something
-        //         this.inputTileSourceCache.update(this.map.painter.transform);
+        this.inputTileSourceCache = this.map?.style["_otherSourceCaches"][this.inputTileSourceID]
+        let inputSourceObject = this.map.getSource(this.inputTileSourceID)
+        inputSourceObject.on('data', () => {
+            this.inputTileSourceCache.update(this.map.painter.transform)
+        })
+
+        this.map.on('move', (e: any) => {
+            console.log('move!')
+        })
+
+
+
+
+
+
+        // if (this.imageTileOption) {
+        //     this.map.getSource(this.inputTileSourceID).on('data', () => {
+        //         console.log('input tile data loaded, trigger update image tile')
+        //         // this.map?.style["_otherSourceCaches"][this.imageTileSourceID].update(this.map.painter.transform);
+        //         this.map?.style["_otherSourceCaches"][this.imageTileSourceID]._loadTile()
         //     })
-        // } else {
-        //     console.log('this.inputTileSource not got')
         // }
-
-
-
-        this.map.style._layers[this.id].source = this.inputTileSourceID
-        // this.map.style._layers[this.id].aaa = 'aaa'
-
-
-        window.addEventListener('keydown', e => {
-            if (e.key === 't') {
-                console.log(this.map.getZoom())
-                console.log(this.map.getCenter())
-                console.log(this.map.getPitch())
-            }
-            else if (e.key === 'q') {
-                const res = this.createGrid(2);
-                console.log(res)
-            }
-        })
     }
 
     createGLProgram() {
+
         let gl = this.gl!
         this.vertexBuffer = Wuti.createVBO(gl, this.globalPlainInfo!.vertexData)
-        this.uvBuffer = Wuti.createVBO(gl, this.globalPlainInfo!.uvData)
         this.indexBuffer = Wuti.createIBO(gl, this.globalPlainInfo!.indexData)
-        this.inputTexture = Wuti.createEmptyTexture(gl, this.TILE_SIZE, this.TILE_SIZE)
-        this.outputTexture = Wuti.createEmptyTexture(gl, this.TILE_SIZE, this.TILE_SIZE)
+        this.lineIndexBuffer = Wuti.createIBO(gl, this.globalPlainInfo!.linesIndexData)
+        // this.inputTexture = Wuti.createEmptyTexture(gl, this.TILE_SIZE, this.TILE_SIZE)
+        // this.outputTexture = Wuti.createEmptyTexture(gl, this.TILE_SIZE, this.TILE_SIZE)
         this.program = Wuti.createProgramFromSource(gl, vs, fs)!
 
         this.glPositions['a_pos'] = gl.getAttribLocation(this.program, 'a_pos')!
-        this.glPositions['a_uv'] = gl.getAttribLocation(this.program, 'a_uv')!
         this.glPositions['u_matrix'] = gl.getUniformLocation(this.program, 'u_matrix')!
         this.glPositions['u_inputTile'] = gl.getUniformLocation(this.program, 'u_inputTile')!
         this.glPositions['u_tileInfo'] = gl.getUniformLocation(this.program, 'u_tileInfo')!
@@ -418,72 +225,99 @@ export class TileDrivenCustomLayer {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
         gl.enableVertexAttribArray(this.glPositions['a_pos'])
         gl.vertexAttribPointer(this.glPositions['a_pos'], 2, gl.FLOAT, false, 0, 0)
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
 
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer)
-        gl.enableVertexAttribArray(this.glPositions['a_uv'])
-        gl.vertexAttribPointer(this.glPositions['a_uv'], 2, gl.FLOAT, false, 0, 0)
 
         gl.bindVertexArray(null)
+        gl.bindBuffer(gl.ARRAY_BUFFER, null)
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null)
 
-        // gl.bindBuffer(gl.ARRAY_BUFFER, null)
-        // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null)
+        // gl.enable(gl.DEPTH_TEST)
+        // gl.depthFunc(gl.LEQUAL)
 
-        gl.enable(gl.DEPTH_TEST)
-        gl.depthFunc(gl.LEQUAL)
-
-        console.log('create program success!')
-
+        // console.log('create program success!')
     }
 
+    getTileCoords(sourceCache: any) {
 
-    get map_style_layers() {
-        return this.map.style._layers
-    }
-    get map_style_sourceCaches() {
-        // return this.map.style
-        return this.map.style["_otherSourceCaches"]
+        let coordsAscending = sourceCache.getVisibleCoordinates();
+        let coordsDescending = coordsAscending.slice().reverse();
+
+        let coords = []
+        if (sourceCache) {
+            const coordsSet = coordsDescending
+            coords = coordsSet[sourceCache.id];
+            let visibleTiles = coordsDescending.map((tile: any) => tile.canonical.toString())
+            // console.log(visibleTiles)
+        }
+
+        return coords
     }
 
 
     tickLogic(gl: WebGL2RenderingContext, matrix: number[]) {
 
+        let theSourceCache = this.map?.style._otherSourceCaches[this.inputTileSourceID]
+        this.getTileCoords(theSourceCache)
+
+        
         const tiles = this.inputTileSourceCache.getVisibleCoordinates()
             .map((tileid: any) => this.inputTileSourceCache.getTile(tileid))
+
+        // let _tiles = this.inputTileSourceCache._tiles
+        // let tiles: any = []
+        // for (let item in _tiles) {
+        //     console.log(_tiles[item])
+        //     let tileID = _tiles[item].tileID
+        //     let tileItem = this.inputTileSourceCache.getTile(tileID)
+        //     tiles.push({
+        //         tileID: tileItem.tileID,
+        //         texture: tileItem.texture,
+        //     })
+        // }
+        // console.log(tiles)
 
         // const { x, y, z } = tiles[0].tileID["canonical"]
         // console.log(z, x, y)
         // console.log(tiles[0].tileID.projMatrix)
 
         let _tile = tiles[0]
-        if(_tile){
-            // same , only projection info , not matix data
-            // console.log(_tile.projection)
-            // console.log(this.map.transform.projection)
-
-            console.log(this.map.transform.globeMatrix)
-            console.log(matrix)
-
-            console.log(_tile.tileTransform)
-            console.log(_tile.projection)
-
+        if (_tile) {
+            console.log(_tile)
         }
-
+        const _indexData = this.globalPlainInfo!.indexData
+        const draw = {
+            'fill': () => {
+                // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
+                // gl.drawElements(gl.TRIANGLES, _indexData.length, gl.UNSIGNED_SHORT, this.globalPlainInfo?.skirtIndexOffset!)
+                gl.drawElements(gl.TRIANGLES, _indexData.length, gl.UNSIGNED_SHORT, 0)
+            },
+            'line': () => {
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.lineIndexBuffer)
+                gl.drawElements(gl.LINES, this.globalPlainInfo!.linesIndexData.length, gl.UNSIGNED_SHORT, 0)
+            },
+            'point': () => {
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
+                gl.drawElements(gl.POINTS, _indexData.length, gl.UNSIGNED_SHORT, 0)
+            },
+        }
+        gl.useProgram(this.program)
+        gl.bindVertexArray(this.vao)
         tiles.forEach((tile: any) => {
             // the inputTexture
             // the outputTexture
             // the plainInfo
-
+            console.log(tile)
             if (!tile.texture.texture) return
 
 
             const { x, y, z } = tile.tileID["canonical"]
-            // console.log(x, y, z)
+            console.log(x, y, z)
+            // if (z !== Math.floor(this.map.transform.zoom)) return
+            // 
             // console.log(tile.tileID.projMatrix)
 
             const inputTileTexture = tile.texture.texture
-            const _indexData = this.globalPlainInfo!.indexData
-
-            gl.useProgram(this.program)
 
             /// uniforms
             gl.activeTexture(gl.TEXTURE0)
@@ -499,8 +333,9 @@ export class TileDrivenCustomLayer {
             gl.uniform3fv(this.glPositions['u_tileInfo'], [x, y, z])
             gl.uniform1f(this.glPositions['u_exaggeration'], this.CONTROLLER.exaggeration)
 
+            draw[this.CONTROLLER.mode]()
+
             /// attributes
-            gl.bindVertexArray(this.vao)
             // gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer)
             // gl.bufferData(gl.ARRAY_BUFFER, vertexData, gl.STATIC_DRAW)
             // gl.bindBuffer(gl.ARRAY_BUFFER, this.uvBuffer)
@@ -509,19 +344,13 @@ export class TileDrivenCustomLayer {
 
             /// index
             // gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indexData, gl.STATIC_DRAW)
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
-
-            const draw = {
-                'fill': () => gl.drawElements(gl.TRIANGLES, _indexData.length, gl.UNSIGNED_SHORT, 0),
-                'line': () => gl.drawElements(gl.LINES, _indexData.length, gl.UNSIGNED_SHORT, 0),
-                'point': () => gl.drawElements(gl.POINTS, _indexData.length, gl.UNSIGNED_SHORT, 0)
-            }
-
-            draw[this.CONTROLLER.mode]()
+            // gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
 
         });
+        gl.bindTexture(gl.TEXTURE_2D, null)
+        gl.bindVertexArray(null)
 
-
+    
     }
 
 
@@ -542,6 +371,7 @@ export class TileDrivenCustomLayer {
     }
 
 
+    /*
     planeSubdivision(width: number, height: number, widthSegs: number, heightSegs: number) {
 
 
@@ -556,14 +386,12 @@ export class TileDrivenCustomLayer {
 
         const indices = [];
         const vertices = [];
-        const uvs = [];
 
         for (let iy = 0; iy < gridY1; iy++) {
             const y = iy * segment_height;
             for (let ix = 0; ix < gridX1; ix++) {
                 const x = ix * segment_width;
                 vertices.push(x / width, y / width);
-                uvs.push(ix / gridX, 1 - (iy / gridY));
             }
         }
 
@@ -579,25 +407,59 @@ export class TileDrivenCustomLayer {
             }
         }
         return {
-            indices, vertices, uvs
+            indices, vertices
         }
 
     }
+    planeSubdivision2(rectExtent: number, segments: number) {
+        const gridNum = Math.floor(segments);
+        const gridSize = rectExtent / gridNum;
 
-    createGrid(count: number) {
+        const indices = [];
+        const vertices = [];
+
+        for (let iy = 0; iy <= gridNum; iy++) {
+            const y = iy * gridSize;
+            for (let ix = 0; ix <= gridNum; ix++) {
+                const x = ix * gridSize;
+                vertices.push(x, y);
+            }
+        }
+
+        for (let iy = 0; iy < gridNum; iy++) {
+            for (let ix = 0; ix < gridNum; ix++) {
+                const a = ix + (gridNum + 1) * iy;
+                const b = ix + (gridNum + 1) * (iy + 1);
+                const c = (ix + 1) + (gridNum + 1) * (iy + 1);
+                const d = (ix + 1) + (gridNum + 1) * iy;
+
+                indices.push(a, b, d);
+                indices.push(b, c, d);
+            }
+        }
+        return {
+            vertices,
+            indices
+        }
+    }
+    */
+    planeSubdivision3(TILE_EXTENT: number, count: number) {
+
+        // count --- 129
+        // grid num -- 129 * 129
+        // vertex num -- 130 * 130
+        // valid size -- 128 * 128
 
         const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(value, max));
 
 
-        const EXTENT = 1;
+        const EXTENT = TILE_EXTENT;
         const size = count + 2;
 
         // Around the grid, add one more row/column padding for "skirt".
-        // let boundsArray = new Array(size * size);
-        // let indexArray = new Array((size - 1) * (size - 1) * 2);
-        let boundsArray: Array<number> = [];
-        let indexArray: Array<number> = [];
-        let skirtIndexArray: Array<number> = [];
+        let vertices: Array<number> = [];
+        let indices: Array<number> = [];
+        let linesIndices: Array<number> = [];
 
         const step = EXTENT / (count - 1);
         const gridBound = EXTENT + step / 2;
@@ -612,78 +474,53 @@ export class TileDrivenCustomLayer {
                 const offset = (x < 0 || x > gridBound || y < 0 || y > gridBound) ? skirtOffset : 0;
                 const xi = clamp(Math.round(x), 0, EXTENT);
                 const yi = clamp(Math.round(y), 0, EXTENT);
-                boundsArray.push(xi + offset, yi);
+                vertices.push(xi + offset, yi);
+                // vertices.push(xi , yi);
             }
         }
-        const skirtIndexArrayOffset = (size - 3) * (size - 3) * 2;
 
+        let skirtIndicesOffset = 0;
         // Grid indices:
         for (let j = 1; j < size - 2; j++) {
             for (let i = 1; i < size - 2; i++) {
                 const index = j * size + i;
-                indexArray.push(index + 1, index, index + size);
-                indexArray.push(index + size, index + size + 1, index + 1);
+                indices.push(index + 1, index, index + size);
+                indices.push(index + size, index + size + 1, index + 1);
+
+                skirtIndicesOffset += 6;
+
+                linesIndices.push(index + 1, index);
+                linesIndices.push(index, index + size);
+                linesIndices.push(index + size, index + 1,);
             }
         }
         // Padding (skirt) indices:
         [0, size - 2].forEach(j => {
             for (let i = 0; i < size - 1; i++) {
                 const index = j * size + i;
-                skirtIndexArray.push(index + 1, index, index + size);
-                skirtIndexArray.push(index + size, index + size + 1, index + 1);
+                indices.push(index + 1, index, index + size);
+                indices.push(index + size, index + size + 1, index + 1);
+
+                linesIndices.push(index + 1, index);
+                linesIndices.push(index, index + size);
+                linesIndices.push(index + size, index + 1,);
             }
         });
-
         return {
-            boundsArray,
-            indexArray,
-            skirtIndexArray,
+            vertices,
+            indices,
+            skirtIndicesOffset,
+            linesIndices
         }
-
     }
-
-
-
-}
-
-
-
-function tilePolygonToVertex(tilePolygon: any) {
-    const p = tilePolygon
-    let [minLng, minLat, maxLng, maxLat] = [
-        180,
-        85.5,
-        -180,
-        -85.5
-    ]
-    for (let i = 0; i < p.coordinates[0].length; i++) {
-        let lnglat = p.coordinates[0][i];
-        if (lnglat[0] < minLng) minLng = lnglat[0];
-        if (lnglat[0] > maxLng) maxLng = lnglat[0];
-        if (lnglat[1] < minLat) minLat = lnglat[1];
-        if (lnglat[1] > maxLat) maxLat = lnglat[1];
-    }
-    const vertex = []
-    let min = MercatorCoordinate.fromLngLat([minLng, minLat])
-    let max = MercatorCoordinate.fromLngLat([maxLng, maxLat])
-
-    // vertex.push(min.x, min.y)
-    // vertex.push(min.x, max.y)
-    // vertex.push(max.x, min.y)
-    // vertex.push(max.x, max.y)
-    vertex.push(min.x, min.y)
-    vertex.push(min.x, max.y)
-    vertex.push(max.x, max.y)
-    vertex.push(max.x, min.y)
-
-    return vertex
 }
 
 
 
 export const initMap = () => {
 
-
+    // const tk = 'pk.eyJ1IjoibnVqYWJlc2xvbyIsImEiOiJjbGp6Y3czZ2cwOXhvM3FtdDJ5ZXJmc3B4In0.5DCKDt0E2dFoiRhg3yWNRA'
+    const tk = 'pk.eyJ1IjoibnVqYWJlc2xvbyIsImEiOiJjbGp6Y3czZ2cwOXhvM3FtdDJ5ZXJmc3B4In0.5DCKDt0E2dFoiRhg3yWNRA'
     const EmptyStyle = {
         "version": 8,
         "name": "Empty",
@@ -694,87 +531,142 @@ export const initMap = () => {
     }
 
     const map = new ScratchMap({
-    // const map = new mapboxgl.Map({
+        accessToken: tk,
+        // const map = new mapboxgl.Map({
+
         // style: EmptyStyle,
-        style: 'mapbox://styles/mapbox/dark-v11',
         // style: 'mapbox://styles/mapbox/light-v11',
-        // projection: 'mercator',
-        accessToken: 'pk.eyJ1IjoibnVqYWJlc2xvbyIsImEiOiJjbGp6Y3czZ2cwOXhvM3FtdDJ5ZXJmc3B4In0.5DCKDt0E2dFoiRhg3yWNRA',
+        style: 'mapbox://styles/mapbox/dark-v11',
+        // style: 'mapbox://styles/mapbox/satellite-streets-v12',
         container: 'map',
         projection: 'mercator' as any,
         antialias: true,
         maxZoom: 18,
-        minPitch: 0,
+        // minPitch: 0,
         center: MZSVIEWCONFIG.center as any,
         zoom: MZSVIEWCONFIG.zoom,
         pitch: MZSVIEWCONFIG.pitch,
-    }).on('load', () => {
-
-        map.showTileBoundaries = true;
-        // map.fitBounds([[120.0483046046972, 31.739366192168674], [120.98183604889795, 32.14476417588851]])
 
 
-        //////////////////// EXMAPLE 1 ::   osm raster tile
-        // map.addSource('some-png-tile-source', {
-        //     type: "raster",
-        //     tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-        // })
-        // map.addLayer({
-        //     id: 'png-tile-layer',
-        //     type: 'raster',
-        //     source: 'some-png-tile-source',
-        //     paint: {
-        //         "raster-opacity": 0.9,
-        //     }
-        // })
-
-
-        //////////////////// EXMAPLE 2 ::  MZS DEM raster tile
-        // map.addSource('mapRaster2020', {
-        //     type: 'raster',
-        //     tiles: [
-        //         'http://172.21.212.166:8989/api/v1' + '/tile/raster/mzs/2020/Before/{x}/{y}/{z}',
-        //     ],
-        // })
-        // map.addLayer({
-        //     id: 'ras',
-        //     type: 'raster',
-        //     source: 'mapRaster2020',
-        // })
-
-        // const anyLayer = new InvasionLayer('invasion')
-        // map.addLayer(anyLayer as mapboxgl.AnyLayer)
-
-
-        //////////////////// EXMAPLE 3 ::  DMK DEM raster tile
-        // map.addSource('mapRaster2020', {
-        //     type: 'raster',
-        //     tiles: [
-        //         'http://172.21.212.238:8989/api/v0' + '/resource/raster/getRasterTile/66ee2ae4a2945bc8ed08c229/{z}/{x}/{y}',
-        //     ],
-        // })
-        // map.addLayer({
-        //     id: 'ras',
-        //     type: 'raster',
-        //     source: 'mapRaster2020',
-        // })
-
-        // const anyLayer = new InvasionLayer('invasion')
-        // map.addLayer(anyLayer as mapboxgl.AnyLayer)
-
-
-        const anyLayer = new TileDrivenCustomLayer('any', {
-            type: "raster",
-            // tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-            tiles: [
-                'http://172.21.212.238:8989/api/v0' + '/resource/raster/getRasterTile/66ee2ae4a2945bc8ed08c229/{z}/{x}/{y}',
-            ],
-        })
-        map.addLayer(anyLayer as mapboxgl.AnyLayer)
-
-
-
-
-
+        // container: 'map',
+        // zoom: 14,
+        // center: [-114.26608, 32.7213],
+        // pitch: 80,
+        // bearing: 41,
+        // // Choose from Mapbox's core styles, or make your own style with Mapbox Studio
+        // style: 'mapbox://styles/mapbox/satellite-streets-v12'
     })
+        // .on('style.load', () => {
+        //     map.addSource('mapbox-dem', {
+        //         'type': 'raster-dem',
+        //         'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+        //         'tileSize': 512,
+        //         'maxzoom': 14
+        //     });
+        //     // add the DEM source as a terrain layer with exaggerated height
+        //     map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 10.0 });
+        // });
+        .on('load', () => {
+
+            map.showTileBoundaries = true;
+            // map.fitBounds([[120.0483046046972, 31.739366192168674], [120.98183604889795, 32.14476417588851]])
+
+            //////////////////// EXMAPLE 1 ::   normal raster tile
+            // map.addSource('some-png-tile-source', {
+            //     type: "raster",
+            //     tiles: [
+            //         'https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.webp?sku=101wRN1gMSNOn&access_token=' + tk
+            //     ],
+            // })
+            // map.addLayer({
+            //     id: 'png-tile-layer',
+            //     type: 'raster',
+            //     source: 'some-png-tile-source',
+            //     paint: {
+            //         "raster-opacity": 0.9,
+            //     }
+            // })
+
+
+            //////////////////// EXMAPLE 2 ::  MZS DEM raster tile
+            // map.addSource('mapRaster2020', {
+            //     type: 'raster',
+            //     tiles: [
+            //         'http://172.21.212.166:8989/api/v1' + '/tile/raster/mzs/2020/Before/{x}/{y}/{z}',
+            //     ],
+            // })
+            // map.addLayer({
+            //     id: 'ras',
+            //     type: 'raster',
+            //     source: 'mapRaster2020',
+            // })
+
+            // const anyLayer = new InvasionLayer('invasion')
+            // map.addLayer(anyLayer as mapboxgl.AnyLayer)
+
+
+            //////////////////// EXMAPLE 3 ::  low resolution DEM raster tile
+            // map.addSource('mapRaster2020', {
+            //     type: 'raster',
+            //     tiles: [
+            //         'http://172.21.212.238:8989/api/v0' + '/resource/raster/getRasterTile/66ee2ae4a2945bc8ed08c229/{z}/{x}/{y}',
+            //     ],
+            // })
+            // map.addLayer({
+            //     id: 'ras',
+            //     type: 'raster',
+            //     source: 'mapRaster2020',
+            // })
+
+
+            //////////////////// EXMAPLE 4 ::  mapbox terrain-rgb tile
+            // map.addSource('mapbox-dem', {
+            //     'type': 'raster',
+            //     'tiles': [
+            //         // 'https://api.mapbox.com/v4/mapbox.terrain-rgb/3/1/1.pngraw?access_token=' + tk
+            //         'https://api.mapbox.com/raster/v1/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.webp?sku=1014O3eLtuPmm&access_token=' + tk
+            //     ]
+
+            // });
+            // map.addLayer({
+            //     'id': 'terrain-raster',
+            //     'type': 'raster',
+            //     'source':'mapbox-dem',
+            //     'paint': {
+            //         'raster-opacity': 0.75,
+            //         'raster-fade-duration': 300
+            //     },
+            // })
+            // map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
+
+
+            // map.addSource('mapbox-dem', {
+            //     'type': 'raster-dem',
+            //     'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+            //     'tileSize': 512,
+            //     'maxzoom': 14
+            // });
+            // // add the DEM source as a terrain layer with exaggerated height
+            // map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
+
+            const anyLayer = new TileDrivenCustomLayer('any', {
+                type: "raster",
+                tiles: [
+                    'http://localhost:8989/api/v1' + '/tile/raster/mzs/2020/Before/{x}/{y}/{z}',
+                    // 'https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=' + tk,
+                    // 'https://api.mapbox.com/raster/v1/mapbox.mapbox-terrain-dem-v1/{z}/{x}/{y}.webp?sku=101atFtO4sXfU&access_token=' + tk
+                    // 'https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.webp?sku=101wRN1gMSNOn&access_token=' + tk
+                ],
+            }
+                // , {
+                //     type: "raster",
+                //     tiles: [
+                //         // 'http://localhost:8989/api/v1' + '/tile/raster/mzs/2020/Before/{x}/{y}/{z}',
+                //         'https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.webp?sku=101wRN1gMSNOn&access_token=' + tk
+                //     ],
+                // }
+            )
+            map.addLayer(anyLayer as mapboxgl.AnyLayer)
+
+        })
 }

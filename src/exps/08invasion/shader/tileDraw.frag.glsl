@@ -2,6 +2,7 @@
 precision highp float;
 
 in vec2 v_uv;
+in float isSkirt;
 uniform sampler2D u_inputTile;
 uniform vec3 u_tileInfo; // z range -- 4
 uniform float u_exaggeration;
@@ -78,19 +79,22 @@ void main() {
     // float height = color.x * 0.4f + 0.6f;
     float height = M.x * 0.9f + 0.1f;
 
+    if(isSkirt > 0.0f) {
+        FragColor = vec4(1.0f, 0.04f, 0.04f, 1.0f);
+        return;
+    }
     if(isNoData(M.rgb, vec3[4](Left.rgb, Right.rgb, Top.rgb, Bottom.rgb))) {
         FragColor = vec4(0.0f);
+        return;
     } 
     // else if(isContourPoint(M.rgb, vec3[4](Left.rgb, Right.rgb, Top.rgb, Bottom.rgb))) {
 
     //     FragColor = vec4(0.97f, 0.97f, 0.97f, 1.0f);// dark base map
-    //     // FragColor = vec4(0.1f, 0.1f, 0.1f, 1.0f);// light base map
-
+    //     return;
     // } 
-    else {
 
-        FragColor = vec4(getColorWithHeight(height), 1.0f);
-
-    }
+    // FragColor = vec4(getColorWithHeight(height), 0.4f);
+    FragColor = vec4(M.rgb,0.5f);
+    // FragColor = vec4(0.3f);
 
 }

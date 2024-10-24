@@ -132,13 +132,13 @@ export function updateVBO(gl: WebGL2RenderingContext, buffer: WebGLBuffer, data:
         gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW)
 }
 
-export function createIBO(gl: WebGL2RenderingContext, data: Array<number> | Uint16Array) {
+export function createIBO(gl: WebGL2RenderingContext, data: Array<number> | Uint16Array, offset = 0) {
     const indexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     if (data instanceof Array)
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(data), gl.STATIC_DRAW)
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(data), gl.STATIC_DRAW, offset, data.length - offset)
     else
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data, gl.STATIC_DRAW)
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data, gl.STATIC_DRAW, offset, data.length - offset)
     return indexBuffer
 }
 export function updateIBO(gl: WebGL2RenderingContext, buffer: WebGLBuffer, data: Array<number> | Uint16Array) {

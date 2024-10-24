@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
-// import mapbox from 'mapbox-gl';
+import { onMounted } from 'vue'
 // import { prepare,instansDraw } from '../exps/01triangle/main';
 // import { main, main2 } from '../exps/02texture/main'
 // import { main, main3d } from '../exps/03transform/main'
@@ -10,7 +9,8 @@ import { onMounted, reactive, ref, watch } from 'vue'
 // import { initMap, EulerFlowLayer } from '../exps/07arrow/main'
 // import { initMap } from '../exps/07arrow/withMask'
 // import { main } from '../exps/培训案例/pulsing';
-import { initMap } from '../exps/08invasion/invasion';
+// import { initMap } from '../exps/08invasion/invasion';
+import { initMap } from '../exps/08invasion/terrainV0.js';
 // import { initMap } from '../exps/terrain/main.js'
 
 
@@ -53,6 +53,7 @@ onMounted(() => {
   // instansDraw()
   // main()
   // prepare()
+
 })
 
 </script>
@@ -78,7 +79,7 @@ onMounted(() => {
   height: 100vh;
   margin: 0;
   padding: 0;
-  // overflow: hidden;
+  overflow: hidden;
   display: flex;
   justify-content: center;
   align-items: center;

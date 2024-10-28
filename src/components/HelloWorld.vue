@@ -13,7 +13,7 @@ import { onMounted } from 'vue'
 // import { initMap } from '../exps/08invasion/terrainV0.js';
 // import {initMap} from '../exps/08invasion/model.js'
 // import { initMap } from '../exps/terrain/main.js'
-import { main } from '../exps/10shadow/exmaple.js'
+import { initMap } from '../exps/10shadow/modelLayer.js'
 
 
 // const nowZoom = ref(0)
@@ -49,12 +49,12 @@ onMounted(() => {
   //   }
   // })
 
-  // initMap()
+  initMap()
   // simpleArrow()
   // instansDraw()
   // main()
   // prepare()
-  main()
+  // main()
 
 })
 
@@ -62,8 +62,8 @@ onMounted(() => {
 
 <template>
   <div class="main">
-    <canvas id='playground'></canvas>
-    <!-- <div id="map"></div> -->
+    <!-- <canvas id='playground'></canvas> -->
+    <div id="map"></div>
     <!-- <div id="progress">
       <el-progress :percentage="percentage" :stroke-width="15" striped />
     </div>

@@ -104,7 +104,6 @@ export class TileDrivenCustomLayer {
     onAdd(map: mapboxgl.Map, gl: WebGL2RenderingContext) {
         this.map = map;
         this.gl = gl;
-
         this.initGUI()
 
         this.createProxyLayer();

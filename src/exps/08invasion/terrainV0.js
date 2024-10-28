@@ -187,6 +187,7 @@ function encodeFloatToDouble(value) {
 import mapboxgl from "mapbox-gl";
 import { mat4 } from "gl-matrix";
 import shaderCode from './shader/V0.glsl'
+import tilebelt from "@mapbox/tilebelt";
 
 const layerV0 = {
     id: 'test',
@@ -203,6 +204,7 @@ const layerV0 = {
         this.grid = this.createGrid(8192, 128 + 1);
         this.proxySouceCache = map.style.getOwnSourceCache(this.proxySourceID);
 
+        ///////////////////////////
         this.program = createProgramFromSource2(gl, shaderCode);
 
         this.posBuffer = createVBO(gl, this.grid.vertices);
@@ -217,13 +219,13 @@ const layerV0 = {
         gl.bindVertexArray(null);
 
         this.matLocation = gl.getUniformLocation(this.program, 'u_matrix');
+        //////////////////////////
 
         this.map = map;
         // this.move = this.move.bind(this);
         // map.on('move', e => {
         //     this.move()
         // })
-        console.log(this.map.style._layers)
     },
     render(gl, matrix) {
 
@@ -235,14 +237,13 @@ const layerV0 = {
         gl.disable(gl.DEPTH_TEST)
 
         let tilesBeingDrawn = []
-        this.getTiles(this.proxySouceCache).forEach(tile => {
 
+        const tiles = this.getTiles(this.proxySouceCache)
+        const tiles2 = this.tileFilter(tiles)
+        tiles2.forEach(tile => {
             if (tile.demTexture && tile.demTexture.texture) {
 
                 const { x, y, z } = tile.tileID.canonical
-                // console.log(x, y, z)
-                // if (z !== Math.floor(this.map.getZoom()) - 2) return;
-
                 tilesBeingDrawn.push({ x, y, z })
 
                 let posMatrix = this.map.transform.calculatePosMatrix(tile.tileID.toUnwrapped(), this.map.transform.worldSize);
@@ -256,11 +257,39 @@ const layerV0 = {
                 gl.drawElements(gl.TRIANGLES, this.grid.indices.length, gl.UNSIGNED_SHORT, 0);
             }
         })
-        console.log(tilesBeingDrawn)
 
     },
-    // move() {
-    //     this.proxySouceCache.update(this.map.painter.transform);
+    tileFilter(tiles) {
+
+        const tileID = (tile) => { return [tile.tileID.canonical.x, tile.tileID.canonical.y, tile.tileID.canonical.z] }
+        const tileParent = (tile) => tilebelt.getParent(tileID(tile))
+        const tileChildren = (tile) => tilebelt.getChildren(tileID(tile))
+        const ogTile = (tileid) => {
+            for (let tile of tiles) {
+                console.log(tileID(tile), tileid)
+                if (tileID(tile) == tileid)
+                    return tile
+            }
+        }
+
+        const tileIDs = tiles.map(tile => tileID(tile))
+        const filteredTiles = []
+
+        for (let tile of tiles) {
+            if (tile.demTexture && tile.demTexture.texture) {
+                let addFlag = true
+                for (let child of tileChildren(tile)) {
+                    if (tilebelt.hasTile(tileIDs, child)) {
+                        addFlag = false; break;
+                    }
+                }
+                addFlag && filteredTiles.push(tile)
+            }
+        }
+        return filteredTiles
+    },
+    // tileFilter(tiles){
+
     // },
     initProxy(map) {
         const pxy = {
@@ -372,13 +401,10 @@ const layerV0 = {
         let tiles = []
         let tileCoords = []
         if (!!sourceCache) {
-            tileIDs = sourceCache.getVisibleCoordinates();
-            tileIDs.map(tileID => {
-                tiles.push(sourceCache.getTile(tileID))
-                tileCoords.push(tileID.canonical)
-            })
-            console.log(tileCoords)
+            let demTiles = this.map.painter.terrain.visibleDemTiles
+            tiles = demTiles
         }
+
         return tiles
     },
     createGrid(TILE_EXTENT, count) {

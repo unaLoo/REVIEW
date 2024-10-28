@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@loaders.gl/core": "^4.3.1",
+    "@loaders.gl/gltf": "^4.3.1",
     "@mapbox/tilebelt": "^1.0.2",
     "@types/d3-delaunay": "^6.0.4",
     "@types/dat.gui": "^0.7.13",
@@ -27,6 +29,7 @@
     "sass-loader": "^14.2.1",
     "three": "^0.169.0",
     "tilebelt": "^1.0.1",
+    "twgl.js": "^5.5.4",
     "vue": "^3.4.21"
   },
   "devDependencies": {

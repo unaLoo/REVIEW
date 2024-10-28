@@ -11,8 +11,9 @@ import { onMounted } from 'vue'
 // import { main } from '../exps/培训案例/pulsing';
 // import { initMap } from '../exps/08invasion/invasion';
 // import { initMap } from '../exps/08invasion/terrainV0.js';
-import {initMap} from '../exps/08invasion/model.js'
+// import {initMap} from '../exps/08invasion/model.js'
 // import { initMap } from '../exps/terrain/main.js'
+import { main } from '../exps/10shadow/exmaple.js'
 
 
 // const nowZoom = ref(0)
@@ -20,7 +21,6 @@ import {initMap} from '../exps/08invasion/model.js'
 // let map: any
 
 onMounted(() => {
-
   // map = new mapbox.Map({
   //   style: "mapbox://styles/nujabesloo/clxk678ma00ch01pdd2lfgps2",
   //   center: [120.980697, 31.684162], // [ 120.556596, 32.042607 ], //[ 120.53525158459905, 31.94879239156117 ], // 120.980697, 31.684162
@@ -49,11 +49,12 @@ onMounted(() => {
   //   }
   // })
 
-  initMap()
+  // initMap()
   // simpleArrow()
   // instansDraw()
   // main()
   // prepare()
+  main()
 
 })
 
@@ -61,8 +62,8 @@ onMounted(() => {
 
 <template>
   <div class="main">
-    <!-- <canvas id='playground'></canvas> -->
-    <div id="map"></div>
+    <canvas id='playground'></canvas>
+    <!-- <div id="map"></div> -->
     <!-- <div id="progress">
       <el-progress :percentage="percentage" :stroke-width="15" striped />
     </div>
@@ -86,13 +87,13 @@ onMounted(() => {
   align-items: center;
   background-color: rgb(63, 63, 63);
 
-  // #playground {
-  //   position: relative;
-  //   width: 90%;
-  //   height: 90%;
-  //   background-color: gray;
-  //   z-index: 0;
-  // }
+  #playground {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background-color: gray;
+    z-index: 0;
+  }
 
   #map {
     position: absolute;

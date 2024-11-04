@@ -10,10 +10,10 @@ import { onMounted } from 'vue'
 // import { initMap } from '../exps/07arrow/withMask'
 // import { main } from '../exps/培训案例/pulsing';
 // import { initMap } from '../exps/08invasion/invasion';
-// import { initMap } from '../exps/08invasion/terrainV0.js';
+import { initMap } from '../exps/08invasion/terrainV0.js';
 // import {initMap} from '../exps/08invasion/model.js'
 // import { initMap } from '../exps/terrain/main.js'
-import { initMap } from '../exps/10shadow/modelLayer.js'
+// import { initMap } from '../exps/10shadow/modelLayer.js'
 
 
 // const nowZoom = ref(0)

@@ -258,8 +258,8 @@ const modelLayer = {
                 false,
                 lighterModelMatrix
             )
-            gl.bindFramebuffer(gl.FRAMEBUFFER, depthFramebuffer);
-            gl.viewport(0, 0, depthTextureSize, depthTextureSize);
+            gl.bindFramebuffer(gl.FRAMEBUFFER, mesh.depthFramebuffer);
+            gl.viewport(0, 0, this.depthTextureSize, this.depthTextureSize);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
             gl.bindVertexArray(mesh.vao4shadow)
             gl.drawElements(gl.TRIANGLES, mesh.geometry.index.count, gl.UNSIGNED_INT, 0);
@@ -405,7 +405,7 @@ const modelLayer = {
         let gl = this.gl
         // init shadow texture
         const depthTexture = mesh.depthTexture = gl.createTexture()
-        const depthTextureSize = 512
+        const depthTextureSize = this.depthTextureSize = 512
         gl.bindTexture(gl.TEXTURE_2D, depthTexture)
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT32F, depthTextureSize, depthTextureSize, 0, gl.DEPTH_COMPONENT, gl.FLOAT, null)
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)

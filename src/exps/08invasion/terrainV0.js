@@ -220,7 +220,6 @@ const layerV0 = {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.idxBuffer);
         gl.bindVertexArray(null);
 
-        this.matLocation = gl.getUniformLocation(this.program, 'u_matrix');
         //////////////////////////
 
         this.map = map;
@@ -238,12 +237,20 @@ const layerV0 = {
 
         gl.useProgram(this.program);
         gl.bindVertexArray(this.vao);
-        gl.disable(gl.DEPTH_TEST)
+        // gl.disable(gl.DEPTH_TEST)
+        gl.disable(gl.BLEND)
+
+        // gl.enable(gl.STENCIL_TEST)
+
+        gl.clear(gl.DEPTH_BUFFER_BIT)
+        gl.enable(gl.DEPTH_TEST)
+        gl.depthFunc(gl.LESS)
 
 
 
-        const { tiles, demTiles, prevDemTiles } = this.getTiles(this.proxySouceCache)
-
+        const tiles = this.getTiles(this.proxySouceCache)
+        // console.log(tiles.map(t => t.prevDemTile.tileID.canonical))
+        // console.log(tiles.map(t => t.demTile.tileID.canonical))
         let tr = this.map.transform;
         let terrain = this.map.painter.terrain;
 
@@ -251,9 +258,10 @@ const layerV0 = {
 
             let demTexture = null
 
-            let tile = tiles[i]
-            let demTile = demTiles[i]
-            let prevDemTile = prevDemTiles ? prevDemTiles[i] : null
+            let tile = tiles[i].tile
+            let demTile = tiles[i].demTile
+            let prevDemTile = tiles[i].prevDemTile
+
             if (!tile || !demTile || !demTile.demTexture) continue
             if (tile && demTile && demTile.demTexture) {
                 demTexture = demTile.demTexture.texture
@@ -263,7 +271,7 @@ const layerV0 = {
                 console.log('no dem texture')
                 continue
             }
-            
+
 
             // console.log(prevDemTile ? prevDemTile.tileID.canonical : null, demTile.tileID.canonical)
             if (demTileChanged(prevDemTile, demTile)) {
@@ -290,7 +298,7 @@ const layerV0 = {
 
 
             // tile render
-            gl.uniformMatrix4fv(this.matLocation, false, tileMPMatrix)
+            gl.uniformMatrix4fv(gl.getUniformLocation(this.program, 'u_matrix'), false, tileMPMatrix)
 
             gl.activeTexture(gl.TEXTURE0)
             gl.bindTexture(gl.TEXTURE_2D, demTexture);
@@ -302,29 +310,16 @@ const layerV0 = {
             gl.uniform1f(gl.getUniformLocation(this.program, 'u_exaggeration'), uniforms['u_exaggeration'])
             gl.uniform1f(gl.getUniformLocation(this.program, 'u_skirt_height'), uniforms['u_skirt_height'])
 
+            // gl.stencilFunc(gl.GEQUAL, tile.tileID.canonical.z, 0xFF)
+            // gl.stencilOp(gl.KEEP, gl.KEEP, gl.REPLACE) 
+
             gl.drawElements(gl.TRIANGLES, this.grid.indices.length, gl.UNSIGNED_SHORT, 0);
 
         }
+        // gl.disable(gl.STENCIL_TEST);
 
-        gl.enable(gl.DEPTH_TEST)
-        tiles.forEach(tile => {
-            if (!tile) return
-            if (tile.demTexture && tile.demTexture.texture) {
 
-                // const { x, y, z } = tile.tileID.canonical
-                // tilesBeingDrawn.push({ x, y, z })
 
-                let posMatrix = this.map.transform.calculatePosMatrix(tile.tileID.toUnwrapped(), this.map.transform.worldSize);
-                let tileMPMatrix = mat4.multiply([], projMatrix, posMatrix);
-
-                gl.uniformMatrix4fv(this.matLocation, false, tileMPMatrix)
-
-                gl.activeTexture(gl.TEXTURE0)
-                gl.bindTexture(gl.TEXTURE_2D, tile.demTexture.texture);
-
-                gl.drawElements(gl.TRIANGLES, this.grid.indices.length, gl.UNSIGNED_SHORT, 0);
-            }
-        })
 
     },
 
@@ -371,31 +366,27 @@ const layerV0 = {
     },
     getTiles(sourceCache) {
         let tiles = []
-        let demTiles = []
-        let prevDemTiles = []
         if (!!sourceCache) {
             // let demTiles = this.map.painter.terrain.visibleDemTiles
             // tiles = demTiles
             let _tiles = sourceCache.getVisibleCoordinates()
+            sortByDistanceToCamera(_tiles, this.map.painter)
+            _tiles = _tiles.reverse()
+            console.log('sortedTile', _tiles.map(t => t.canonical.toString()))
             for (let i = 0; i < _tiles.length; i++) {
                 let id = _tiles[i].key
                 let tile = sourceCache.getTileByID(id)
                 const nowDemTile = this.map.painter.terrain.terrainTileForTile[id]
                 const prevDemTile = this.map.painter.terrain.prevTerrainTileForTile[id]
-                demTiles.push(nowDemTile)
-                prevDemTiles.push(prevDemTile)
-                tiles.push(tile)
-            }
 
-            tiles.sort((a, b) => { b.tileID.z - a.tileID.z })
-            demTiles.sort((a, b) => { b.tileID.z - a.tileID.z })
-            prevDemTiles.sort((a, b) => { b.tileID.z - a.tileID.z })
+                tiles.push({
+                    tile: tile,
+                    demTile: nowDemTile,
+                    prevDemTile: prevDemTile,
+                })
+            }
         }
-        return {
-            tiles,
-            demTiles,
-            prevDemTiles
-        }
+        return tiles
     },
     createGrid(TILE_EXTENT, count) {
 
@@ -450,7 +441,7 @@ const layerV0 = {
             linesIndices
         }
     },
-    updateProjectionMat(minElevation = -80.0, mercatorWorldSize = 1024000) {
+    updateProjectionMat(minElevation = -90.0, mercatorWorldSize = 1024000) {
         const offset = this.centerOffset;
         const halfFov = this._fov / 2
 
@@ -470,7 +461,7 @@ const layerV0 = {
         const worldToCamera = this._camera.getWorldToCamera(this.worldSize, zUnit);
         let cameraToClip;
 
-        const cameraToClipPerspective = this._camera.getCameraToClipPerspective(this._fov, this.width / this.height, 0.0, farZ);
+        const cameraToClipPerspective = this._camera.getCameraToClipPerspective(this._fov, this.width / this.height, nearZ, farZ);
         // Apply offset/padding
         cameraToClipPerspective[8] = -offset.x * 2 / this.width;
         cameraToClipPerspective[9] = offset.y * 2 / this.height;
@@ -522,6 +513,43 @@ function demTileChanged(prev, next) {
         return false;
     return prev.tileID.key !== next.tileID.key;
 }
+
+
+function sortByDistanceToCamera(tileIDs, painter) {
+    const cameraCoordinate = painter.transform.pointCoordinate(painter.transform.getCameraPoint());
+    const cameraPoint = { x: cameraCoordinate.x, y: cameraCoordinate.y };
+
+    tileIDs.sort((a, b) => {
+        if (b.overscaledZ - a.overscaledZ) return b.overscaledZ - a.overscaledZ;
+
+        const aPoint = {
+            x: a.canonical.x + (1 << a.canonical.z) * a.wrap,
+            y: a.canonical.y
+        };
+
+        const bPoint = {
+            x: b.canonical.x + (1 << b.canonical.z) * b.wrap,
+            y: b.canonical.y
+        };
+
+        const cameraScaled = {
+            x: cameraPoint.x * (1 << a.canonical.z),
+            y: cameraPoint.y * (1 << a.canonical.z)
+        };
+
+        cameraScaled.x -= 0.5;
+        cameraScaled.y -= 0.5;
+
+        const distSqr = (point1, point2) => {
+            const dx = point1.x - point2.x;
+            const dy = point1.y - point2.y;
+            return dx * dx + dy * dy;
+        };
+
+        return distSqr(cameraScaled, aPoint) - distSqr(cameraScaled, bPoint);
+    });
+}
+
 
 export const initMap = () => {
 

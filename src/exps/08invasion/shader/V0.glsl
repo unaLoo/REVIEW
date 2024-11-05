@@ -53,9 +53,7 @@ void main() {
     vec2 pos = pos_skirt.xy;
     float skirt = pos_skirt.z;
 
-    float height = elevation(pos) - skirt * (u_skirt_height);
-    // float height = elevation(pos) - skirt * SKIRT_HEIGHT;
-    // float height = elevation(pos);
+    float height = elevation(pos) - skirt * (10000.0);
 
     gl_Position = u_matrix * vec4(pos.xy, height, 1.0);
     v_height = height;
@@ -79,9 +77,9 @@ const float opacity = 0.5;
 
 void main() {
 
-    if(v_skirt > 0.0) {
-        return;
-    }
+    // if(v_skirt > 0.0) {
+    //     return;
+    // }
 
     outColor = vec4((v_height / 30.0 + 60.0) / 70.0, 0.4, 0.45, 1.0);
     // outColor = texture(float_dem_texture, v_uv);

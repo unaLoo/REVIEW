@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, createApp } from 'vue'
 // import { prepare,instansDraw } from '../exps/01triangle/main';
 // import { main, main2 } from '../exps/02texture/main'
 // import { main, main3d } from '../exps/03transform/main'
@@ -13,9 +13,11 @@ import { onMounted } from 'vue'
 // import { initMap } from '../exps/08invasion/terrainV0.js';
 // import {initMap} from '../exps/08invasion/model.js'
 // import { initMap } from '../exps/terrain/main.js'
-import { initMap } from '../exps/10shadow/modelLayer.js'
-
-
+// import { initMap } from '../exps/10shadow/modelLayer.js'
+// import { main } from '../exps/playground/generateMipMap.js'
+// import { main } from '../exps/playground/glFragCoord.js'
+import domtoimage from 'dom-to-image';
+import addon from './addon.vue';
 // const nowZoom = ref(0)
 // const percentage = ref(0)
 // let map: any
@@ -49,12 +51,25 @@ onMounted(() => {
   //   }
   // })
 
-  initMap()
+  // initMap()
   // simpleArrow()
   // instansDraw()
   // main()
   // prepare()
   // main()
+
+  const divNeedToCapture = document.querySelector('#div1')! as HTMLDivElement
+  const mountedFatherDom = document.querySelector('div.main')! as HTMLDivElement
+
+  window.addEventListener('keydown', async (e) => {
+    if (e.key == '1') {
+      const imageUrl = await domtoimage.toPng(divNeedToCapture)
+      const div = document.createElement('div')
+      const app = createApp(addon, { backImgSrc: imageUrl })
+      app.mount(div)
+      mountedFatherDom.appendChild(div)
+    }
+  })
 
 })
 
@@ -62,8 +77,11 @@ onMounted(() => {
 
 <template>
   <div class="main">
+    <div id="div1" class="anim">div1</div>
+    <hr>
+    <!-- <div class="addon" ></div> -->
     <!-- <canvas id='playground'></canvas> -->
-    <div id="map"></div>
+    <!--<div id="map"></div>-->
     <!-- <div id="progress">
       <el-progress :percentage="percentage" :stroke-width="15" striped />
     </div>
@@ -82,10 +100,39 @@ onMounted(() => {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  display: flex;
-  justify-content: center;
-  align-items: center;
   background-color: rgb(63, 63, 63);
+
+  .addon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100px;
+    height: 100px;
+    background-color: red;
+    z-index: 2;
+  }
+
+  div.anim {
+    width: 200px;
+    height: 200px;
+    overflow: hidden;
+
+    @keyframes rotate {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    background-image: linear-gradient(rgba(11, 125, 255, 0.479), rgba(22, 246, 235, 0.411));
+    animation: rotate 2s cubic-bezier(0.8, 0.2, 0.2, 0.8) alternate infinite;
+    border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+
+  }
+
 
   #playground {
     position: relative;

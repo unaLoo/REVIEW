@@ -21,6 +21,7 @@
     "axios": "^1.7.2",
     "d3-delaunay": "^6.0.4",
     "dat.gui": "^0.7.9",
+    "dom-to-image": "^2.6.0",
     "earcut": "^2.2.4",
     "element-plus": "^2.7.6",
     "gl-matrix": "^3.4.3",

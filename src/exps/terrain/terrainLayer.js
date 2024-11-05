@@ -4,7 +4,7 @@ import { plane } from './plane'
 import { Node2D } from './node2D'
 import { GUI } from 'dat.gui'
 import { MercatorCoordinate } from './mercatorCoordinate'
-
+import tilebelt from 'tilebelt'
 
 const config = {
     'global': {

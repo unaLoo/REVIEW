@@ -75,11 +75,11 @@ onMounted(() => {
 
 <template>
   <div class="main">
-    <div id="div1" class="anim">div1</div>
-    <hr>
+    <!--<div id="div1" class="anim">div1</div>-->
+    <!-- <hr> -->
     <!-- <div class="addon" ></div> -->
     <!-- <canvas id='playground'></canvas> -->
-    <!--<div id="map"></div>-->
+    <div id="map"></div>
     <!-- <div id="progress">
       <el-progress :percentage="percentage" :stroke-width="15" striped />
     </div>

@@ -197,6 +197,8 @@ const layerV0 = {
     proxySourceID: 'pxy-source',
     proxyLayerID: 'pxy-layer',
 
+    exaggeration: 30.0,
+
     vao: null,
 
     onAdd(map, gl) {
@@ -228,6 +230,8 @@ const layerV0 = {
         // })
     },
     render(gl, matrix) {
+        // console.log(this.map.painter.terrain._updateTimestamp)
+        const renderTimeStamp = performance.now()
 
         const projMatrix = this.updateProjectionMat.call(this.map.transform)
         // console.log(m)
@@ -236,22 +240,42 @@ const layerV0 = {
         gl.bindVertexArray(this.vao);
         gl.disable(gl.DEPTH_TEST)
 
-        let tilesBeingDrawn = []
 
-        const { tiles, demTiles } = this.getTiles(this.proxySouceCache)
+
+        const { tiles, demTiles, prevDemTiles } = this.getTiles(this.proxySouceCache)
+
         let tr = this.map.transform;
         let terrain = this.map.painter.terrain;
 
         for (let i = 0; i < tiles.length; i++) {
 
+            let demTexture = null
+
             let tile = tiles[i]
             let demTile = demTiles[i]
+            let prevDemTile = prevDemTiles ? prevDemTiles[i] : null
             if (!tile || !demTile || !demTile.demTexture) continue
+            if (tile && demTile && demTile.demTexture) {
+                demTexture = demTile.demTexture.texture
+            } else if (tile && prevDemTile && prevDemTile.demTexture) {
+                demTexture = prevDemTile.demTexture.texture
+            } else {
+                console.log('no dem texture')
+                continue
+            }
+            
+
+            // console.log(prevDemTile ? prevDemTile.tileID.canonical : null, demTile.tileID.canonical)
+            if (demTileChanged(prevDemTile, demTile)) {
+                console.log('dem changed')
+            }
 
             // tile logic
 
             let posMatrix = this.map.transform.calculatePosMatrix(tile.tileID.toUnwrapped(), this.map.transform.worldSize);
             let tileMPMatrix = mat4.multiply([], projMatrix, posMatrix);
+
+            // let tileMPMatrix = tile.tileID.projMatrix
 
             const proxyId = tile.tileID.canonical;
             const demId = demTile.tileID.canonical;
@@ -261,23 +285,28 @@ const layerV0 = {
             uniforms[`u_dem_tl`] = [proxyId.x * demScaleBy % 1, proxyId.y * demScaleBy % 1];
             uniforms['u_dem_size'] = 514 - 2;
             uniforms[`u_dem_scale`] = demScaleBy;
-            uniforms['u_skirt_height'] = skirtHeight(tr.zoom, terrain.exaggeration(), terrain.sourceCache._source.tileSize);
+            uniforms['u_skirt_height'] = skirtHeight(tr.zoom, 1.0, terrain.sourceCache._source.tileSize);
+            uniforms['u_exaggeration'] = this.exaggeration
+
 
             // tile render
             gl.uniformMatrix4fv(this.matLocation, false, tileMPMatrix)
 
             gl.activeTexture(gl.TEXTURE0)
-            gl.bindTexture(gl.TEXTURE_2D, demTile.demTexture.texture);
+            gl.bindTexture(gl.TEXTURE_2D, demTexture);
 
             gl.uniform1i(gl.getUniformLocation(this.program, 'float_dem_texture'), 0);
             gl.uniform2fv(gl.getUniformLocation(this.program, 'u_dem_tl'), uniforms['u_dem_tl']);
             gl.uniform1f(gl.getUniformLocation(this.program, 'u_dem_size'), uniforms['u_dem_size']);
             gl.uniform1f(gl.getUniformLocation(this.program, 'u_dem_scale'), uniforms['u_dem_scale']);
+            gl.uniform1f(gl.getUniformLocation(this.program, 'u_exaggeration'), uniforms['u_exaggeration'])
+            gl.uniform1f(gl.getUniformLocation(this.program, 'u_skirt_height'), uniforms['u_skirt_height'])
 
             gl.drawElements(gl.TRIANGLES, this.grid.indices.length, gl.UNSIGNED_SHORT, 0);
 
         }
 
+        gl.enable(gl.DEPTH_TEST)
         tiles.forEach(tile => {
             if (!tile) return
             if (tile.demTexture && tile.demTexture.texture) {
@@ -300,128 +329,50 @@ const layerV0 = {
     },
 
     initProxy(map) {
-        const pxy = {
-            'rect': () => {
-                map.addSource(this.proxySourceID,
-                    {
-                        type: 'geojson',
-                        data: {
-                            "type": "FeatureCollection",
-                            "features": [{
-                                "type": "Feature",
-                                "properties": {},
-                                "geometry": {
-                                    "coordinates": [[[-180, 85], [180, 85], [180, -85], [-180, -85], [-180, 85]]],
-                                    "type": "Polygon"
-                                }
-                            }]
-                        }
-                    }
-                )
-                map.addLayer(
-                    {
-                        id: this.proxyLayerID,
-                        type: 'fill',
-                        source: this.proxySourceID,
-                        paint: {
-                            'fill-color': '#006eff',
-                            'fill-opacity': 0.1
-                        }
-                    }
-                )
-            },
-            'raster': () => {
-                map.addSource(this.proxySourceID,
-                    {
-                        type: 'raster',
-                        tiles: [
-                            // 'http://localhost:8989/api/v1' + '/tile/raster/mzs/2020/Before/{x}/{y}/{z}'
-                            '/TTB/v0/terrain-rgb/{z}/{x}/{y}.png'
-                        ],
-                        maxZoom: 14
-                    }
-                )
-                map.addLayer(
-                    {
-                        id: this.proxyLayerID,
-                        type: 'raster',
-                        source: this.proxySourceID,
-                        paint: {
-                            'raster-opacity': 0.1,
-                        }
-                    }
-                )
-            },
-            'custom': () => {
-                map.addSource(this.proxySourceID,
-                    {
-                        type: 'raster',
-                        tiles: [
-                            // 'http://localhost:8989/api/v1' + '/tile/raster/mzs/2020/Before/{x}/{y}/{z}'
-                            '/TTB/v0/terrain-rgb/{z}/{x}/{y}.png'
-                        ]
-                    }
-                )
-                map.addLayer(
-                    {
-                        id: this.proxyLayerID,
-                        type: 'custom',
-                        onAdd() { },
-                        render() { }
-                    }
-                )
-                map.style._layers[this.proxyLayerID].source = this.proxySourceID;
-            },
-            'terrain-rgb': () => {
-                map.addSource(this.proxySourceID, {
-                    'type': 'raster-dem',
-                    'url': 'mapbox://mapbox.terrain-rgb',
-                    // 'tiles': [
-                    //     '/TTB/v0/terrain-rgb/{z}/{x}/{y}.png'
-                    // ],
-                    'tileSize': 512,
-                    'maxzoom': 14
-                });
-                map.setTerrain({ 'source': this.proxySourceID, 'exaggeration': 0.1 });
-            },
-            'dem-ras': () => {
-                map.addSource(this.proxySourceID, {
-                    'type': 'raster-dem',
-                    'url': 'mapbox://mapbox.terrain-rgb',
-                    'tileSize': 512,
-                    'maxzoom': 14
-                })
-                map.addLayer(
-                    {
-                        id: this.proxyLayerID,
-                        type: 'custom',
-                        onAdd() { },
-                        render() { }
-                    }
-                )
-                map.style._layers[this.proxyLayerID].source = this.proxySourceID;
-            }
-        }
-
         map.addSource('dem', {
             'type': 'raster-dem',
-            'url': 'mapbox://mapbox.terrain-rgb',
-            // 'tiles': [
-            //     '/TTB/v0/terrain-rgb/{z}/{x}/{y}.png'
-            // ],
+            // 'url': 'mapbox://mapbox.terrain-rgb',
+            'tiles': [
+                '/TTB/v0/terrain-rgb/{z}/{x}/{y}.png'
+            ],
             'tileSize': 512,
             'maxzoom': 14
-        });
+        })
+        map.addSource(this.proxySourceID,
+            {
+                type: 'geojson',
+                data: {
+                    "type": "FeatureCollection",
+                    "features": [{
+                        "type": "Feature",
+                        "properties": {},
+                        "geometry": {
+                            "coordinates": [[[-1, 1], [1, 1], [1, -1], [-1, -1], [-1, 1]]],
+                            "type": "Polygon"
+                        }
+                    }]
+                }
+            }
+        )
         map.setTerrain({ 'source': 'dem', 'exaggeration': 0.1 });
-        pxy['rect']()
+
+        map.addLayer(
+            {
+                id: this.proxyLayerID,
+                type: 'fill',
+                source: this.proxySourceID,
+                paint: {
+                    'fill-color': '#006eff',
+                    'fill-opacity': 0.01
+                }
+            }
+        )
 
     },
     getTiles(sourceCache) {
-        console.log('proxy!!', this.map.painter.terrain.proxyCoords)
-        let tileIDs = []
         let tiles = []
         let demTiles = []
-        let tileCoords = []
+        let prevDemTiles = []
         if (!!sourceCache) {
             // let demTiles = this.map.painter.terrain.visibleDemTiles
             // tiles = demTiles
@@ -429,16 +380,21 @@ const layerV0 = {
             for (let i = 0; i < _tiles.length; i++) {
                 let id = _tiles[i].key
                 let tile = sourceCache.getTileByID(id)
-                const demTile = this.map.painter.terrain.terrainTileForTile[id]
-                demTiles.push(demTile)
+                const nowDemTile = this.map.painter.terrain.terrainTileForTile[id]
+                const prevDemTile = this.map.painter.terrain.prevTerrainTileForTile[id]
+                demTiles.push(nowDemTile)
+                prevDemTiles.push(prevDemTile)
                 tiles.push(tile)
             }
 
+            tiles.sort((a, b) => { b.tileID.z - a.tileID.z })
+            demTiles.sort((a, b) => { b.tileID.z - a.tileID.z })
+            prevDemTiles.sort((a, b) => { b.tileID.z - a.tileID.z })
         }
-
         return {
             tiles,
-            demTiles
+            demTiles,
+            prevDemTiles
         }
     },
     createGrid(TILE_EXTENT, count) {
@@ -469,34 +425,6 @@ const layerV0 = {
                 vertices.push(xi + offset, yi);
             }
         }
-
-        // let skirtIndicesOffset = 0;
-        // // Grid indices:
-        // for (let j = 1; j < size - 2; j++) {
-        //     for (let i = 1; i < size - 2; i++) {
-        //         const index = j * size + i;
-        //         indices.push(index + 1, index, index + size);
-        //         indices.push(index + size, index + size + 1, index + 1);
-
-        //         skirtIndicesOffset += 6;
-
-        //         linesIndices.push(index + 1, index);
-        //         linesIndices.push(index, index + size);
-        //         linesIndices.push(index + size, index + 1,);
-        //     }
-        // }
-        // // Padding (skirt) indices:
-        // [0, size - 2].forEach(j => {
-        //     for (let i = 0; i < size - 1; i++) {
-        //         const index = j * size + i;
-        //         indices.push(index + 1, index, index + size);
-        //         indices.push(index + size, index + size + 1, index + 1);
-
-        //         linesIndices.push(index + 1, index);
-        //         linesIndices.push(index, index + size);
-        //         linesIndices.push(index + size, index + 1,);
-        //     }
-        // });
         const skirtIndicesOffset = (size - 3) * (size - 3) * 2;
         const quad = (i, j) => {
             const index = j * size + i;
@@ -522,7 +450,6 @@ const layerV0 = {
             linesIndices
         }
     },
-
     updateProjectionMat(minElevation = -80.0, mercatorWorldSize = 1024000) {
         const offset = this.centerOffset;
         const halfFov = this._fov / 2
@@ -553,6 +480,8 @@ const layerV0 = {
         return m;
     }
 
+
+
 }
 
 function farthestPixelDistanceOnPlane(tr, minElevation, pixelsPerMeter) {
@@ -581,7 +510,17 @@ function skirtHeight(zoom, terrainExaggeration, tileSize) {
     // seams between tiles and it is not too large: 9 at zoom 22, ~20000m at zoom 0.
     if (terrainExaggeration === 0) return 0;
     const exaggerationFactor = (terrainExaggeration < 1.0 && tileSize === 514) ? 0.25 / terrainExaggeration : 1.0;
-    return 6 * Math.pow(1.5, 22 - zoom) * Math.max(terrainExaggeration, 1.0) * exaggerationFactor;
+    return 10 * Math.pow(1.5, 22 - zoom) * Math.max(terrainExaggeration, 1.0) * exaggerationFactor;
+}
+
+function demTileChanged(prev, next) {
+    if (prev == null || next == null)
+        return false;
+    if (!prev.hasData() || !next.hasData())
+        return false;
+    if (prev.demTexture == null || next.demTexture == null)
+        return false;
+    return prev.tileID.key !== next.tileID.key;
 }
 
 export const initMap = () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, createApp } from 'vue'
+import { onMounted } from 'vue'
 // import { prepare,instansDraw } from '../exps/01triangle/main';
 // import { main, main2 } from '../exps/02texture/main'
 // import { main, main3d } from '../exps/03transform/main'
@@ -10,14 +10,12 @@ import { onMounted, createApp } from 'vue'
 // import { initMap } from '../exps/07arrow/withMask'
 // import { main } from '../exps/培训案例/pulsing';
 // import { initMap } from '../exps/08invasion/invasion';
-// import { initMap } from '../exps/08invasion/terrainV0.js';
+import { initMap } from '../exps/08invasion/terrainV0.js';
 // import {initMap} from '../exps/08invasion/model.js'
 // import { initMap } from '../exps/terrain/main.js'
 // import { initMap } from '../exps/10shadow/modelLayer.js'
-// import { main } from '../exps/playground/generateMipMap.js'
-// import { main } from '../exps/playground/glFragCoord.js'
-import domtoimage from 'dom-to-image';
-import addon from './addon.vue';
+
+
 // const nowZoom = ref(0)
 // const percentage = ref(0)
 // let map: any
@@ -51,25 +49,25 @@ onMounted(() => {
   //   }
   // })
 
-  // initMap()
+  initMap()
   // simpleArrow()
   // instansDraw()
   // main()
   // prepare()
   // main()
 
-  const divNeedToCapture = document.querySelector('#div1')! as HTMLDivElement
-  const mountedFatherDom = document.querySelector('div.main')! as HTMLDivElement
+  // const divNeedToCapture = document.querySelector('#div1')! as HTMLDivElement
+  // const mountedFatherDom = document.querySelector('div.main')! as HTMLDivElement
 
-  window.addEventListener('keydown', async (e) => {
-    if (e.key == '1') {
-      const imageUrl = await domtoimage.toPng(divNeedToCapture)
-      const div = document.createElement('div')
-      const app = createApp(addon, { backImgSrc: imageUrl })
-      app.mount(div)
-      mountedFatherDom.appendChild(div)
-    }
-  })
+  // window.addEventListener('keydown', async (e) => {
+  //   if (e.key == '1') {
+  //     const imageUrl = await domtoimage.toPng(divNeedToCapture)
+  //     const div = document.createElement('div')
+  //     const app = createApp(addon, { backImgSrc: imageUrl })
+  //     app.mount(div)
+  //     mountedFatherDom.appendChild(div)
+  //   }
+  // })
 
 })
 

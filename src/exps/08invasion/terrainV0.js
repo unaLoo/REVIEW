@@ -238,13 +238,52 @@ const layerV0 = {
 
         let tilesBeingDrawn = []
 
-        const tiles = this.getTiles(this.proxySouceCache)
-        const tiles2 = this.tileFilter(tiles)
-        tiles2.forEach(tile => {
+        const { tiles, demTiles } = this.getTiles(this.proxySouceCache)
+        let tr = this.map.transform;
+        let terrain = this.map.painter.terrain;
+
+        for (let i = 0; i < tiles.length; i++) {
+
+            let tile = tiles[i]
+            let demTile = demTiles[i]
+            if (!tile || !demTile || !demTile.demTexture) continue
+
+            // tile logic
+
+            let posMatrix = this.map.transform.calculatePosMatrix(tile.tileID.toUnwrapped(), this.map.transform.worldSize);
+            let tileMPMatrix = mat4.multiply([], projMatrix, posMatrix);
+
+            const proxyId = tile.tileID.canonical;
+            const demId = demTile.tileID.canonical;
+            const demScaleBy = Math.pow(2, demId.z - proxyId.z);
+            const uniforms = {};
+
+            uniforms[`u_dem_tl`] = [proxyId.x * demScaleBy % 1, proxyId.y * demScaleBy % 1];
+            uniforms['u_dem_size'] = 514 - 2;
+            uniforms[`u_dem_scale`] = demScaleBy;
+            uniforms['u_skirt_height'] = skirtHeight(tr.zoom, terrain.exaggeration(), terrain.sourceCache._source.tileSize);
+
+            // tile render
+            gl.uniformMatrix4fv(this.matLocation, false, tileMPMatrix)
+
+            gl.activeTexture(gl.TEXTURE0)
+            gl.bindTexture(gl.TEXTURE_2D, demTile.demTexture.texture);
+
+            gl.uniform1i(gl.getUniformLocation(this.program, 'float_dem_texture'), 0);
+            gl.uniform2fv(gl.getUniformLocation(this.program, 'u_dem_tl'), uniforms['u_dem_tl']);
+            gl.uniform1f(gl.getUniformLocation(this.program, 'u_dem_size'), uniforms['u_dem_size']);
+            gl.uniform1f(gl.getUniformLocation(this.program, 'u_dem_scale'), uniforms['u_dem_scale']);
+
+            gl.drawElements(gl.TRIANGLES, this.grid.indices.length, gl.UNSIGNED_SHORT, 0);
+
+        }
+
+        tiles.forEach(tile => {
+            if (!tile) return
             if (tile.demTexture && tile.demTexture.texture) {
 
-                const { x, y, z } = tile.tileID.canonical
-                tilesBeingDrawn.push({ x, y, z })
+                // const { x, y, z } = tile.tileID.canonical
+                // tilesBeingDrawn.push({ x, y, z })
 
                 let posMatrix = this.map.transform.calculatePosMatrix(tile.tileID.toUnwrapped(), this.map.transform.worldSize);
                 let tileMPMatrix = mat4.multiply([], projMatrix, posMatrix);
@@ -259,38 +298,7 @@ const layerV0 = {
         })
 
     },
-    tileFilter(tiles) {
 
-        const tileID = (tile) => { return [tile.tileID.canonical.x, tile.tileID.canonical.y, tile.tileID.canonical.z] }
-        const tileParent = (tile) => tilebelt.getParent(tileID(tile))
-        const tileChildren = (tile) => tilebelt.getChildren(tileID(tile))
-        const ogTile = (tileid) => {
-            for (let tile of tiles) {
-                console.log(tileID(tile), tileid)
-                if (tileID(tile) == tileid)
-                    return tile
-            }
-        }
-
-        const tileIDs = tiles.map(tile => tileID(tile))
-        const filteredTiles = []
-
-        for (let tile of tiles) {
-            if (tile.demTexture && tile.demTexture.texture) {
-                let addFlag = true
-                for (let child of tileChildren(tile)) {
-                    if (tilebelt.hasTile(tileIDs, child)) {
-                        addFlag = false; break;
-                    }
-                }
-                addFlag && filteredTiles.push(tile)
-            }
-        }
-        return filteredTiles
-    },
-    // tileFilter(tiles){
-
-    // },
     initProxy(map) {
         const pxy = {
             'rect': () => {
@@ -367,10 +375,10 @@ const layerV0 = {
             'terrain-rgb': () => {
                 map.addSource(this.proxySourceID, {
                     'type': 'raster-dem',
-                    // 'url': 'mapbox://mapbox.terrain-rgb',
-                    'tiles': [
-                        '/TTB/v0/terrain-rgb/{z}/{x}/{y}.png'
-                    ],
+                    'url': 'mapbox://mapbox.terrain-rgb',
+                    // 'tiles': [
+                    //     '/TTB/v0/terrain-rgb/{z}/{x}/{y}.png'
+                    // ],
                     'tileSize': 512,
                     'maxzoom': 14
                 });
@@ -394,18 +402,44 @@ const layerV0 = {
                 map.style._layers[this.proxyLayerID].source = this.proxySourceID;
             }
         }
-        pxy['terrain-rgb']()
+
+        map.addSource('dem', {
+            'type': 'raster-dem',
+            'url': 'mapbox://mapbox.terrain-rgb',
+            // 'tiles': [
+            //     '/TTB/v0/terrain-rgb/{z}/{x}/{y}.png'
+            // ],
+            'tileSize': 512,
+            'maxzoom': 14
+        });
+        map.setTerrain({ 'source': 'dem', 'exaggeration': 0.1 });
+        pxy['rect']()
+
     },
     getTiles(sourceCache) {
+        console.log('proxy!!', this.map.painter.terrain.proxyCoords)
         let tileIDs = []
         let tiles = []
+        let demTiles = []
         let tileCoords = []
         if (!!sourceCache) {
-            let demTiles = this.map.painter.terrain.visibleDemTiles
-            tiles = demTiles
+            // let demTiles = this.map.painter.terrain.visibleDemTiles
+            // tiles = demTiles
+            let _tiles = sourceCache.getVisibleCoordinates()
+            for (let i = 0; i < _tiles.length; i++) {
+                let id = _tiles[i].key
+                let tile = sourceCache.getTileByID(id)
+                const demTile = this.map.painter.terrain.terrainTileForTile[id]
+                demTiles.push(demTile)
+                tiles.push(tile)
+            }
+
         }
 
-        return tiles
+        return {
+            tiles,
+            demTiles
+        }
     },
     createGrid(TILE_EXTENT, count) {
 
@@ -542,6 +576,14 @@ function farthestPixelDistanceOnPlane(tr, minElevation, pixelsPerMeter) {
     return Math.min(furthestDistance * 1.01, horizonDistance);
 }
 
+function skirtHeight(zoom, terrainExaggeration, tileSize) {
+    // Skirt height calculation is heuristic: provided value hides
+    // seams between tiles and it is not too large: 9 at zoom 22, ~20000m at zoom 0.
+    if (terrainExaggeration === 0) return 0;
+    const exaggerationFactor = (terrainExaggeration < 1.0 && tileSize === 514) ? 0.25 / terrainExaggeration : 1.0;
+    return 6 * Math.pow(1.5, 22 - zoom) * Math.max(terrainExaggeration, 1.0) * exaggerationFactor;
+}
+
 export const initMap = () => {
 
     // const tk = 'pk.eyJ1IjoibnVqYWJlc2xvbyIsImEiOiJjbGp6Y3czZ2cwOXhvM3FtdDJ5ZXJmc3B4In0.5DCKDt0E2dFoiRhg3yWNRA'
@@ -589,7 +631,7 @@ export const initMap = () => {
 
         .on('load', () => {
 
-            // map.showTileBoundaries = true;
+            map.showTileBoundaries = true;
 
             map.addLayer(layerV0)
         })

@@ -1,14 +1,17 @@
 import { mat4 } from "gl-matrix"
-import { createShader, createTexture2D, loadImage, createFrameBuffer, createRenderBuffer, enableAllExtensions, createVBO, createIBO } from "./glLib"
+import { createShaderFromCode, createTexture2D, loadImage, createFrameBuffer, createRenderBuffer, enableAllExtensions, createVBO, createIBO } from "./glLib"
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MercatorCoordinate } from 'mapbox-gl';
-import mapboxgl from "mapbox-gl";
+
+import debugCode from './shader/dem-visibleTile/debug.glsl'
+import terrainMeshCode from './shader/dem-visibleTile/terrainMesh.glsl'
+import terrainLayerCode from './shader/dem-visibleTile/terrainLayer.glsl'
+import modelCode from './shader/dem-visibleTile/model.glsl'
 
 
-export class TerrainLayer {
+export default class TerrainByDEMvisible {
 
     constructor() {
-
         this.id = 'test'
         this.type = 'custom'
         this.renderingMode = '3d'
@@ -23,7 +26,8 @@ export class TerrainLayer {
         this.canvasWidth = 0
         this.canvasHeight = 0
 
-        this.withContour = 0.0
+        this.withContour = 1.0
+        this.lightingMode = 1.0
         this.color = [0.0, 0.0, 0.0]
         this.elevationRange = [-66.513999999999996, 4.3745000000000003]
 
@@ -52,21 +56,19 @@ export class TerrainLayer {
         this.canvasHeight = gl.canvas.height
 
         // Load shaders
-        this.program = await createShader(gl, '/shaders/terrainMesh.glsl')
-        this.hillShadeProgram = await createShader(gl, '/shaders/hillShade.glsl')
-        this.showShader = await createShader(gl, '/shaders/terrainLayer.glsl')
-        this.modelProgram = await createShader(gl, '/shaders/model.glsl')
+        this.program = await createShaderFromCode(gl, terrainMeshCode)
+        this.showShader = await createShaderFromCode(gl, terrainLayerCode)
+        this.modelProgram = await createShaderFromCode(gl, modelCode)
 
         // Load Image
         const paletteBitmap = await loadImage('/images/contourPalette1D.png')
 
         // Create textures
-        this.layerTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT)
-        // this.layerDepthTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.DEPTH_COMPONENT24, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT)
+        this.dnormTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT)
+        this.dHsTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RG32F, gl.RG, gl.FLOAT)
+
         this.paletteTexture = createTexture2D(gl, paletteBitmap.width, paletteBitmap.height, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, paletteBitmap, gl.LINEAR)
 
-        this.hillShadeTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.R32F, gl.RED, gl.FLOAT)
-        // this.hillShadeTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT)
 
         // Prepare buffers
         this.grid = createGrid(8192, 128 + 1)
@@ -85,10 +87,9 @@ export class TerrainLayer {
 
         // Prepare Passes
         this.layerRenderBuffer = createRenderBuffer(gl, this.canvasWidth, this.canvasHeight)
-        // this.layerPass = createFrameBuffer(gl, [this.layerTexture], this.layerDepthTexture, this.layerRenderBuffer)
-        this.layerPass = createFrameBuffer(gl, [this.layerTexture], null, this.layerRenderBuffer)
 
-        this.hillShadePass = createFrameBuffer(gl, [this.hillShadeTexture], null, null)
+        this.layerPass = createFrameBuffer(gl, [this.dnormTexture], null, this.layerRenderBuffer)
+
 
 
         // model
@@ -165,29 +166,6 @@ export class TerrainLayer {
         }
         gl.disable(gl.STENCIL_TEST);
 
-        // Pass 1.5: HillShade Pass
-        /////////////////////////////////////////////////////////////////////////////////////////////////////////
-        gl.bindFramebuffer(gl.FRAMEBUFFER, this.hillShadePass)
-        gl.viewport(0.0, 0.0, this.canvasWidth, this.canvasHeight)
-        // gl.disable(gl.DEPTH_TEST)
-
-        gl.clearColor(0.0, 0.0, 0.0, 0.0)
-        gl.clear(gl.COLOR_BUFFER_BIT)
-
-        gl.disable(gl.BLEND)
-
-        gl.useProgram(this.hillShadeProgram)
-        gl.activeTexture(gl.TEXTURE0)
-        gl.bindTexture(gl.TEXTURE_2D, this.layerTexture)
-        gl.uniform1i(gl.getUniformLocation(this.hillShadeProgram, 'srcTexture'), 0)
-
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
-
-
-        //////////////////// Debug pass: show texture binded in frame buffer
-        // gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-        // gl.bindTexture(gl.TEXTURE_2D, null)
-        // this.doDebug(this.hillShadeTexture)
 
 
 
@@ -206,17 +184,15 @@ export class TerrainLayer {
         gl.useProgram(this.showShader)
 
         gl.activeTexture(gl.TEXTURE0)
-        gl.bindTexture(gl.TEXTURE_2D, this.layerTexture)
+        gl.bindTexture(gl.TEXTURE_2D, this.dnormTexture)
         gl.activeTexture(gl.TEXTURE1)
         gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture)
-        gl.activeTexture(gl.TEXTURE2)
-        gl.bindTexture(gl.TEXTURE_2D, this.hillShadeTexture)
 
         gl.uniform1i(gl.getUniformLocation(this.showShader, 'srcTexture'), 0)
         gl.uniform1i(gl.getUniformLocation(this.showShader, 'paletteTexture'), 1)
-        gl.uniform1i(gl.getUniformLocation(this.showShader, 'hillShadeTexture'), 2)
         gl.uniform1f(gl.getUniformLocation(this.showShader, 'interval'), 1.0)
         gl.uniform1f(gl.getUniformLocation(this.showShader, 'withContour'), this.withContour)
+        gl.uniform1f(gl.getUniformLocation(this.showShader, 'lightingMode'), this.lightingMode)
         gl.uniform2fv(gl.getUniformLocation(this.showShader, 'e'), new Float32Array(this.elevationRange))
         gl.uniform3fv(gl.getUniformLocation(this.showShader, 'contourColor'), new Float32Array(this.color))
 
@@ -229,6 +205,7 @@ export class TerrainLayer {
 
         // Pass 3: Model Render Pass
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
+        
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
         gl.enable(gl.DEPTH_TEST)
         // gl.enable(gl.CULL_FACE)
@@ -247,6 +224,7 @@ export class TerrainLayer {
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, mesh.texture);
             gl.bindVertexArray(mesh.vao)
+            console.log(mesh.geometry.index.count)
             gl.drawElements(gl.TRIANGLES, mesh.geometry.index.count, gl.UNSIGNED_INT, 0);
         })
 
@@ -337,7 +315,7 @@ export class TerrainLayer {
     }
 
     async initDebug() {
-        this.debugProgram = await createShader(this.gl, '/shaders/debug.glsl')
+        this.debugProgram = await createShaderFromCode(this.gl, debugCode)
     }
     doDebug(texture) {
         let gl = this.gl
@@ -353,57 +331,7 @@ export class TerrainLayer {
 }
 
 
-export const initMap = () => {
 
-    const tk = 'pk.eyJ1IjoibnVqYWJlc2xvbyIsImEiOiJjbGp6Y3czZ2cwOXhvM3FtdDJ5ZXJmc3B4In0.5DCKDt0E2dFoiRhg3yWNRA'
-    const EmptyStyle = {
-        "version": 8,
-        "name": "Empty",
-        "sources": {
-        },
-        "layers": [
-        ]
-    }
-    const MZSVIEWCONFIG = {
-        center: [120.53794466757358, 32.03061107103058],
-        zoom: 16.096017911120207,
-        // pitch: 10.71521535597063,
-        pitch: 0,
-    }
-
-    // const map = new ScratchMap({
-    const map = new mapboxgl.Map({
-        accessToken: tk,
-        // style: EmptyStyle,
-        style: 'mapbox://styles/mapbox/light-v11',
-        // style: 'mapbox://styles/mapbox/dark-v11',
-        // style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        container: 'map',
-        projection: 'mercator',
-        antialias: true,
-        maxZoom: 14,
-        // minPitch: 0,
-        center: MZSVIEWCONFIG.center,
-        zoom: MZSVIEWCONFIG.zoom,
-        pitch: MZSVIEWCONFIG.pitch,
-
-
-        // container: 'map',
-        // zoom: 14,
-        // center: [-114.26608, 32.7213],
-        // pitch: 80,
-        // bearing: 41,
-        // // Choose from Mapbox's core styles, or make your own style with Mapbox Studio
-        // style: 'mapbox://styles/mapbox/satellite-streets-v12'
-    })
-
-        .on('load', () => {
-
-            map.showTileBoundaries = true;
-
-            map.addLayer(new TerrainLayer())
-        })
-}
 
 
 //#region Helper

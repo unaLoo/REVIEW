@@ -2,8 +2,6 @@
 
 precision highp float;
 
-const float SKIRT_HEIGHT_FLAG = 24575.0;
-
 out vec2 texcoords;
 
 vec4[] vertices = vec4[4](vec4(-1.0, -1.0, 0.0, 0.0), vec4(1.0, -1.0, 1.0, 0.0), vec4(-1.0, 1.0, 0.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0));
@@ -24,11 +22,9 @@ precision highp int;
 precision highp float;
 precision highp usampler2D;
 
-const float SKIRT_HEIGHT_FLAG = 24575.0;
-
 in vec2 texcoords;
 
-uniform sampler2D meshTexture;
+uniform sampler2D srcTexture;
 uniform sampler2D paletteTexture;
 uniform sampler2D maskTexture;
 
@@ -38,19 +34,10 @@ uniform float withContour;
 
 out vec4 fragColor;
 
-vec2 decomposeHeight(float heightValue) {
-    float skirt = float(heightValue >= SKIRT_HEIGHT_FLAG);
-    float realHeight = heightValue - skirt * SKIRT_HEIGHT_FLAG;
-    return vec2(realHeight, skirt);
-}
+vec4 loadTerrainInfo(vec2 uv, vec2 offset) {
 
-vec3 loadTerrainInfo(vec2 uv, vec2 offset) {
-
-    vec2 dim = vec2(textureSize(meshTexture, 0));
-    // return texelFetch(meshTexture, ivec2(uv * dim + offset), 0);
-    vec4 texel = texelFetch(meshTexture, ivec2(uv * dim + offset), 0);
-    vec2 height_skirt = decomposeHeight(texel.r);
-    return vec3(height_skirt.x, texel.g, height_skirt.y);//realheight , hillshade, skirt
+    vec2 dim = vec2(textureSize(srcTexture, 0));
+    return texelFetch(srcTexture, ivec2(uv * dim + offset), 0);
 }
 
 vec3 colorMapping(float elevation) {
@@ -68,9 +55,6 @@ float validFragment(vec2 uv) {
     return texture(maskTexture, uv).r;
 }
 
-float sigmoid(float x) {
-    return 1.0 / (1.0 + exp(-x));
-}
 void main() {
 
     if(validFragment(texcoords) == 0.0) {
@@ -78,11 +62,11 @@ void main() {
     }
 
     float factor = 1.0;
-    vec3 M = loadTerrainInfo(texcoords, vec2(0.0, 0.0));
-    vec3 N = loadTerrainInfo(texcoords, vec2(0.0, factor));
-    vec3 E = loadTerrainInfo(texcoords, vec2(factor, 0.0));
-    vec3 S = loadTerrainInfo(texcoords, vec2(0.0, -factor));
-    vec3 W = loadTerrainInfo(texcoords, vec2(-factor, 0.0));
+    vec4 M = loadTerrainInfo(texcoords, vec2(0.0, 0.0));
+    vec4 N = loadTerrainInfo(texcoords, vec2(0.0, factor));
+    vec4 E = loadTerrainInfo(texcoords, vec2(factor, 0.0));
+    vec4 S = loadTerrainInfo(texcoords, vec2(0.0, -factor));
+    vec4 W = loadTerrainInfo(texcoords, vec2(-factor, 0.0));
 
     int intervalM = withinInterval(M.r);
     int intervalN = withinInterval(N.r);
@@ -98,24 +82,24 @@ void main() {
 
     // height test
     // vec2 e = vec2(-66.5, 4.4);
-    // vec3 intervalColor = vec3(abs(M.r) / length(e), 1.0, 1.0);
+    // vec3 outColor = vec3(abs(M.r) / length(e),0.5,0.5);
     vec3 intervalColor = colorMapping(M.r);
 
+    // hillshade test
+    // vec3 outColor = vec3((M.g));
     float hillshade = M.g;
-    // hillshade = 1.0 - 1.0 / exp(5.0 * hillshade);
-    hillshade = pow(hillshade, 3.0) + 0.4;
+    // float hillshade = M.g * 0.7 + 0.3;
+    hillshade = 1.0;
     vec3 outColor = intervalColor * hillshade;
-    float alpha = 1.0;
-    if(M.b > 0.0) {
-        fragColor = vec4(0.0);
-        return;
-    }
+    // float depthRate = (M.r - e.y) / (e.x - e.y);
+    // float alpha = M.r < 9999.0 ? 1.0 * depthRate : 0.0;
+    float alpha = M.r < 9999.0 ? 0.9 : 0.0;
 
     fragColor = vec4(outColor, alpha);
 
     // Countours
     float contourAlpha = 0.8;
-    if(false && withContour == 1.0) {
+    if(withContour == 1.0) {
         if(intervalN < intervalM || intervalE < intervalM || intervalS < intervalM || intervalW < intervalM) {
             fragColor = vec4(intervalColor * 0.8, contourAlpha);
             if(intervalM == 0) {
@@ -128,7 +112,6 @@ void main() {
         }
     }
 
-    // fragColor = vec4((M.r + 60.0) / 70.0, 0.5, 0.6, 1.0);
 }
 
 #endif

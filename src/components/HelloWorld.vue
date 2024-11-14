@@ -15,7 +15,10 @@ import { onMounted } from 'vue'
 // import { initMap } from '../exps/10shadow/modelLayer.js'
 
 // import { initMap } from '../exps/08invasion/terrainV0.js';
-import { initMap } from '../exps/good/TERRAIN.js';
+// import { initMap } from '../exps/good/TERRAIN.js';
+// import { main } from '../exps/playground/MRT.js'
+
+import { initMap } from '../exps/TerrainCollection/m.js'
 
 
 // const nowZoom = ref(0)

@@ -25,18 +25,26 @@ precision highp float;
 precision highp usampler2D;
 
 const float SKIRT_HEIGHT_FLAG = 24575.0;
+const vec3 lightPosition = vec3(100.0, -100.0, 200.0);
 
 in vec2 texcoords;
 
 uniform sampler2D meshTexture;
 uniform sampler2D paletteTexture;
 uniform sampler2D maskTexture;
+uniform sampler2D diffTexture;
 
 uniform vec2 e;
 uniform float interval;
 uniform float withContour;
+uniform float lightingMode;
 
 out vec4 fragColor;
+
+
+float sigmod(float x) {
+    return 1.0 / (1.0 + exp(-x));
+}
 
 vec2 decomposeHeight(float heightValue) {
     float skirt = float(heightValue >= SKIRT_HEIGHT_FLAG);
@@ -51,6 +59,19 @@ vec3 loadTerrainInfo(vec2 uv, vec2 offset) {
     vec4 texel = texelFetch(meshTexture, ivec2(uv * dim + offset), 0);
     vec2 height_skirt = decomposeHeight(texel.r);
     return vec3(height_skirt.x, texel.g, height_skirt.y);//realheight , hillshade, skirt
+}
+
+float sampleHillshade(vec2 uv) {
+    return texture(diffTexture, uv).r;
+}
+
+float calcNormDiff(vec2 uv) {
+    vec3 normal = texture(diffTexture, uv).gba;
+    vec3 lightDir = normalize(lightPosition - vec3(0.0));
+    float diff = clamp(dot(normal, lightDir), 0.0, 1.0);
+    // diff = sigmod(diff);
+    diff = diff * 0.6 + 0.4;
+    return diff;
 }
 
 vec3 colorMapping(float elevation) {
@@ -68,9 +89,7 @@ float validFragment(vec2 uv) {
     return texture(maskTexture, uv).r;
 }
 
-float sigmoid(float x) {
-    return 1.0 / (1.0 + exp(-x));
-}
+
 void main() {
 
     if(validFragment(texcoords) == 0.0) {
@@ -90,23 +109,19 @@ void main() {
     int intervalS = withinInterval(S.r);
     int intervalW = withinInterval(W.r);
 
-    // float diff = M.g;
-    // vec3 intervalColor = colorMapping(M.r) * diff;
-    // vec3 intervalColor = colorMapping(M.r);
-    // vec3 outColor = intervalColor;
-    // vec3 outColor = intervalColor * M.g;
-
-    // height test
-    // vec2 e = vec2(-66.5, 4.4);
-    // vec3 intervalColor = vec3(abs(M.r) / length(e), 1.0, 1.0);
     vec3 intervalColor = colorMapping(M.r);
+    vec3 outColor = intervalColor;
 
-    float hillshade = M.g;
-    // hillshade = 1.0 - 1.0 / exp(5.0 * hillshade);
-    hillshade = pow(hillshade, 3.0) + 0.4;
-    vec3 outColor = intervalColor * hillshade;
+    if(lightingMode == 1.0) {
+        float hillshade = sampleHillshade(texcoords);
+        outColor = intervalColor * hillshade;
+    } else if(lightingMode == 2.0) {
+        float normDiff = calcNormDiff(texcoords);
+        outColor = intervalColor * normDiff;
+    }
+
     float alpha = 1.0;
-    if(M.b > 0.0) {
+    if(M.r <= -9999.0) {
         fragColor = vec4(0.0);
         return;
     }
@@ -115,7 +130,7 @@ void main() {
 
     // Countours
     float contourAlpha = 0.8;
-    if(false && withContour == 1.0) {
+    if(withContour == 1.0) {
         if(intervalN < intervalM || intervalE < intervalM || intervalS < intervalM || intervalW < intervalM) {
             fragColor = vec4(intervalColor * 0.8, contourAlpha);
             if(intervalM == 0) {

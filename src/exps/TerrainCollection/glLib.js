@@ -75,6 +75,43 @@ export async function createShader(gl, url) {
     }
 }
 
+export function createShaderFromCode(gl, code) {
+
+    let shaderCode = code
+    const vertexShaderStage = compileShader(gl, shaderCode, gl.VERTEX_SHADER)
+    const fragmentShaderStage = compileShader(gl, shaderCode, gl.FRAGMENT_SHADER)
+
+    const shader = gl.createProgram()
+    gl.attachShader(shader, vertexShaderStage)
+    gl.attachShader(shader, fragmentShaderStage)
+    gl.linkProgram(shader)
+    if (!gl.getProgramParameter(shader, gl.LINK_STATUS)) {
+
+        console.error('An error occurred linking shader stages: ' + gl.getProgramInfoLog(shader))
+    }
+
+    return shader
+
+    function compileShader(gl, source, type) {
+
+        const versionDefinition = '#version 300 es\n'
+        const module = gl.createShader(type)
+        if (type === gl.VERTEX_SHADER) source = versionDefinition + '#define VERTEX_SHADER\n' + source
+        else if (type === gl.FRAGMENT_SHADER) source = versionDefinition + '#define FRAGMENT_SHADER\n' + source
+
+        gl.shaderSource(module, source)
+        gl.compileShader(module)
+        if (!gl.getShaderParameter(module, gl.COMPILE_STATUS)) {
+            console.error('An error occurred compiling the shader module: ' + gl.getShaderInfoLog(module))
+            gl.deleteShader(module)
+            return null
+        }
+
+        return module
+    }
+}
+
+
 /**
  * @param { WebGL2RenderingContext } gl 
  * @param { WebGLTexture[] } [ textures ] 

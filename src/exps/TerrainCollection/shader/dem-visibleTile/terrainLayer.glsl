@@ -26,6 +26,7 @@ in vec2 texcoords;
 
 uniform sampler2D srcTexture;
 uniform sampler2D paletteTexture;
+uniform sampler2D dhsTexture;
 
 uniform vec2 e;
 uniform float interval;
@@ -61,10 +62,12 @@ int withinInterval(float elevation) {
     return int(elevation / interval);
 }
 
-float calcHillShadeFactor(vec2 uv) {
+float calcHillShadeFactor(vec2 uv, sampler2D hillShadeTexture) {
 
-    return 1.0;
-    // return texture(hillShadeTexture, uv).r;
+    // return 1.0;
+    vec4 M = texture(hillShadeTexture, texcoords);
+
+    return M.r;
 
     // vec2 dim = vec2(textureSize(hillShadeTexture, 0));
     // vec4 tl = texture(hillShadeTexture, uv);
@@ -105,33 +108,31 @@ void main() {
     } else if(lightingMode == 1.0) {
         diff = clamp((dot(norm, lightDir)) + 0.8, 0.0, 1.0);
     } else if(lightingMode == 2.0) {
-        float hsFactor = calcHillShadeFactor(texcoords);
-        diff = 1.0;
+        float hsFactor = calcHillShadeFactor(texcoords, dhsTexture);
+        diff = hsFactor * 1.0;
     }
 
+    // vec3 intervalColor = vec3(texture(dhsTexture, texcoords).r, 0.0, 0.0);
     vec3 intervalColor = colorMapping(M.r) * diff;
     vec3 outColor = intervalColor;
 
     float depthRate = (M.r - e.y) / (e.x - e.y);
-    // float alpha = M.r < 9999.0 ? 1.0 * depthRate : 0.0;
-
 
     // Countours
-    if (intervalN < intervalM || intervalE < intervalM || intervalS < intervalM || intervalW < intervalM) {
-        
-        outColor = intervalColor * 0.9;
-        if (intervalM == 0) {
-            outColor = vec3(0.0);
-        }
-        else if (intervalM % 6 == 0) {
-            outColor = vec3(0.65, 0.04, 0.04);
-        }
-        else if (intervalM % 10 == 0) {
-            outColor = vec3(0.03, 0.29, 0.46);
-        }
-    }
+    if(withContour == 1.0)
+        if(intervalN < intervalM || intervalE < intervalM || intervalS < intervalM || intervalW < intervalM) {
 
-    float alpha = M.r < 9999.0 ? 0.9 : 0.0;
+            outColor = intervalColor * 0.9;
+            if(intervalM == 0) {
+                outColor = vec3(0.0);
+            } else if(intervalM % 6 == 0) {
+                outColor = vec3(0.65, 0.04, 0.04);
+            } else if(intervalM % 10 == 0) {
+                outColor = vec3(0.03, 0.29, 0.46);
+            }
+        }
+
+    float alpha = M.r < 9999.0 ? 1.0 : 0.0;
     fragColor = vec4(outColor, alpha);
 
 }

@@ -27,7 +27,7 @@ export default class TerrainByDEMvisible {
         this.canvasHeight = 0
 
         this.withContour = 1.0
-        this.lightingMode = 1.0
+        this.lightingMode = 2.0
         this.color = [0.0, 0.0, 0.0]
         this.elevationRange = [-66.513999999999996, 4.3745000000000003]
 
@@ -87,8 +87,7 @@ export default class TerrainByDEMvisible {
 
         // Prepare Passes
         this.layerRenderBuffer = createRenderBuffer(gl, this.canvasWidth, this.canvasHeight)
-
-        this.layerPass = createFrameBuffer(gl, [this.dnormTexture], null, this.layerRenderBuffer)
+        this.layerPass = createFrameBuffer(gl, [this.dnormTexture, this.dHsTexture], null, this.layerRenderBuffer)
 
 
 
@@ -130,6 +129,7 @@ export default class TerrainByDEMvisible {
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.layerPass)
+        gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1])
         gl.viewport(0.0, 0.0, this.canvasWidth, this.canvasHeight)
 
         gl.clearStencil(0)
@@ -173,7 +173,7 @@ export default class TerrainByDEMvisible {
 
         // Pass 2: Show Pass
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+        
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
         gl.viewport(0.0, 0.0, gl.canvas.width, gl.canvas.height)
         gl.disable(gl.DEPTH_TEST)
@@ -187,9 +187,12 @@ export default class TerrainByDEMvisible {
         gl.bindTexture(gl.TEXTURE_2D, this.dnormTexture)
         gl.activeTexture(gl.TEXTURE1)
         gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture)
+        gl.activeTexture(gl.TEXTURE2)
+        gl.bindTexture(gl.TEXTURE_2D, this.dHsTexture)
 
         gl.uniform1i(gl.getUniformLocation(this.showShader, 'srcTexture'), 0)
         gl.uniform1i(gl.getUniformLocation(this.showShader, 'paletteTexture'), 1)
+        gl.uniform1i(gl.getUniformLocation(this.showShader, 'dhsTexture'), 2)
         gl.uniform1f(gl.getUniformLocation(this.showShader, 'interval'), 1.0)
         gl.uniform1f(gl.getUniformLocation(this.showShader, 'withContour'), this.withContour)
         gl.uniform1f(gl.getUniformLocation(this.showShader, 'lightingMode'), this.lightingMode)
@@ -200,12 +203,13 @@ export default class TerrainByDEMvisible {
 
 
 
+        // this.doDebug(this.dHsTexture)
 
 
 
         // Pass 3: Model Render Pass
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
-        
+
         gl.viewport(0, 0, gl.canvas.width, gl.canvas.height)
         gl.enable(gl.DEPTH_TEST)
         // gl.enable(gl.CULL_FACE)
@@ -224,7 +228,6 @@ export default class TerrainByDEMvisible {
             gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, mesh.texture);
             gl.bindVertexArray(mesh.vao)
-            console.log(mesh.geometry.index.count)
             gl.drawElements(gl.TRIANGLES, mesh.geometry.index.count, gl.UNSIGNED_INT, 0);
         })
 
@@ -319,8 +322,11 @@ export default class TerrainByDEMvisible {
     }
     doDebug(texture) {
         let gl = this.gl
-        gl.clearColor(0.0, 0.0, 0.0, 0.0)
-        gl.clear(gl.COLOR_BUFFER_BIT)
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+        // gl.clearColor(0.0, 0.0, 0.0, 0.0)
+        // gl.clear(gl.COLOR_BUFFER_BIT)
+        gl.enable(gl.BLEND)
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         gl.viewport(0.0, 0.0, gl.canvas.width, gl.canvas.height)
         gl.useProgram(this.debugProgram)
         gl.activeTexture(gl.TEXTURE0)

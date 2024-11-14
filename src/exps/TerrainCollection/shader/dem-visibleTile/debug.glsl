@@ -28,8 +28,8 @@ out vec4 fragColor;
 void main() {
     vec4 M = texture(debugTexture, texcoords);
     // float alpha = M.r < 9999.0 ? 0.8 : 0.0;
-    fragColor = vec4(vec3(M.r), 1.0);
-    // fragColor = M;
+    // fragColor = vec4(vec3((M.r + 70.0) / 80.0), 1.0);
+    fragColor = vec4(vec3(M.r), 0.3);
 }   
 
 #endif

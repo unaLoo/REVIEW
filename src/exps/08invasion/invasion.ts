@@ -259,7 +259,7 @@ export class TileDrivenCustomLayer {
         let theSourceCache = this.map?.style._otherSourceCaches[this.inputTileSourceID]
         this.getTileCoords(theSourceCache)
 
-        
+
         const tiles = this.inputTileSourceCache.getVisibleCoordinates()
             .map((tileid: any) => this.inputTileSourceCache.getTile(tileid))
 
@@ -349,7 +349,7 @@ export class TileDrivenCustomLayer {
         gl.bindTexture(gl.TEXTURE_2D, null)
         gl.bindVertexArray(null)
 
-    
+
     }
 
 
@@ -370,78 +370,6 @@ export class TileDrivenCustomLayer {
     }
 
 
-    /*
-    planeSubdivision(width: number, height: number, widthSegs: number, heightSegs: number) {
-
-
-        const gridX = Math.floor(widthSegs);
-        const gridY = Math.floor(heightSegs);
-
-        const gridX1 = gridX + 1;
-        const gridY1 = gridY + 1;
-
-        const segment_width = width / gridX;
-        const segment_height = height / gridY;
-
-        const indices = [];
-        const vertices = [];
-
-        for (let iy = 0; iy < gridY1; iy++) {
-            const y = iy * segment_height;
-            for (let ix = 0; ix < gridX1; ix++) {
-                const x = ix * segment_width;
-                vertices.push(x / width, y / width);
-            }
-        }
-
-        for (let iy = 0; iy < gridY; iy++) {
-            for (let ix = 0; ix < gridX; ix++) {
-                const a = ix + gridX1 * iy;
-                const b = ix + gridX1 * (iy + 1);
-                const c = (ix + 1) + gridX1 * (iy + 1);
-                const d = (ix + 1) + gridX1 * iy;
-
-                indices.push(a, b, d);
-                indices.push(b, c, d);
-            }
-        }
-        return {
-            indices, vertices
-        }
-
-    }
-    planeSubdivision2(rectExtent: number, segments: number) {
-        const gridNum = Math.floor(segments);
-        const gridSize = rectExtent / gridNum;
-
-        const indices = [];
-        const vertices = [];
-
-        for (let iy = 0; iy <= gridNum; iy++) {
-            const y = iy * gridSize;
-            for (let ix = 0; ix <= gridNum; ix++) {
-                const x = ix * gridSize;
-                vertices.push(x, y);
-            }
-        }
-
-        for (let iy = 0; iy < gridNum; iy++) {
-            for (let ix = 0; ix < gridNum; ix++) {
-                const a = ix + (gridNum + 1) * iy;
-                const b = ix + (gridNum + 1) * (iy + 1);
-                const c = (ix + 1) + (gridNum + 1) * (iy + 1);
-                const d = (ix + 1) + (gridNum + 1) * iy;
-
-                indices.push(a, b, d);
-                indices.push(b, c, d);
-            }
-        }
-        return {
-            vertices,
-            indices
-        }
-    }
-    */
     planeSubdivision3(TILE_EXTENT: number, count: number) {
 
         // count --- 129

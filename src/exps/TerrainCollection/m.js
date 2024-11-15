@@ -1,7 +1,7 @@
 import mapboxgl from "mapbox-gl"
 import TerrainByDEMvisible from "./dem-visibleTile"
 import TerrainByDEMmipmap from "./dem-visibleMipmap"
-// import TerrainByProxyTile from './dem-proxyTile'
+import TerrainByProxyTile from './dem-proxyTile'
 
 
 export const initMap = () => {
@@ -26,13 +26,13 @@ export const initMap = () => {
     const map = new mapboxgl.Map({
         accessToken: tk,
         // style: EmptyStyle,
-        style: 'mapbox://styles/mapbox/light-v11',
-        // style: 'mapbox://styles/mapbox/dark-v11',
+        // style: 'mapbox://styles/mapbox/light-v11',
+        style: 'mapbox://styles/mapbox/dark-v11',
         // style: 'mapbox://styles/mapbox/satellite-streets-v12',
         container: 'map',
         projection: 'mercator',
         antialias: true,
-        maxZoom: 18,
+        maxZoom: 16,
         // minPitch: 0,
         center: MZSVIEWCONFIG.center,
         zoom: MZSVIEWCONFIG.zoom,
@@ -52,8 +52,8 @@ export const initMap = () => {
 
             map.showTileBoundaries = true;
 
-            map.addLayer(new TerrainByDEMvisible())
+            // map.addLayer(new TerrainByDEMvisible())
             // map.addLayer(new TerrainByDEMmipmap())
-            // map.addLayer(new TerrainByProxyTile())
+            map.addLayer(new TerrainByProxyTile())
         })
 }

@@ -2,7 +2,10 @@ import { mat4 } from "gl-matrix"
 import { createShaderFromCode, createTexture2D, loadImage, createFrameBuffer, createRenderBuffer, enableAllExtensions, createVBO, createIBO } from "./glLib"
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MercatorCoordinate } from 'mapbox-gl';
+import earcut from 'earcut'
+import axios from "axios";
 
+import maskCode from './shader/dem-visibleTile/mask.glsl'
 import debugCode from './shader/dem-visibleTile/debug.glsl'
 import terrainMeshCode from './shader/dem-visibleTile/terrainMesh.glsl'
 import terrainLayerCode from './shader/dem-visibleTile/terrainLayer.glsl'
@@ -19,6 +22,8 @@ export default class TerrainByDEMvisible {
 
         this.proxyLayerID = 'pxy-layer'
         this.proxySourceID = 'pxy-source'
+        
+        this.maskURL = '/mask/CJ.geojson'
 
         this.vao = null
         this.isReady = false
@@ -56,6 +61,7 @@ export default class TerrainByDEMvisible {
         this.canvasHeight = gl.canvas.height
 
         // Load shaders
+        this.maskProgram = await createShaderFromCode(gl, maskCode)
         this.program = await createShaderFromCode(gl, terrainMeshCode)
         this.showShader = await createShaderFromCode(gl, terrainLayerCode)
         this.modelProgram = await createShaderFromCode(gl, modelCode)
@@ -64,6 +70,8 @@ export default class TerrainByDEMvisible {
         const paletteBitmap = await loadImage('/images/contourPalette1D.png')
 
         // Create textures
+        this.maskTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.R8, gl.RED, gl.UNSIGNED_BYTE, null, gl.NEAREST)
+
         this.dnormTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA32F, gl.RGBA, gl.FLOAT)
         this.dHsTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RG32F, gl.RG, gl.FLOAT)
 
@@ -71,10 +79,22 @@ export default class TerrainByDEMvisible {
 
 
         // Prepare buffers
+        let { vertexData, indexData } = await parseMultipolygon(this.maskURL)
+        let maskPosBuffer = createVBO(gl, vertexData)
+        let maskIdxBuffer = createIBO(gl, indexData) //Uint16 --> gl.UNSIGNED_SHORT
+        this.maskElements = indexData.length
+        this.maskVao = gl.createVertexArray()
+        gl.bindVertexArray(this.maskVao)
+        gl.enableVertexAttribArray(0)
+        gl.bindBuffer(gl.ARRAY_BUFFER, maskPosBuffer)
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, maskIdxBuffer)
+        gl.bindVertexArray(null)
+
+
         this.grid = createGrid(8192, 128 + 1)
         this.idxBuffer = createIBO(gl, this.grid.indices)
         this.posBuffer = createVBO(gl, this.grid.vertices)
-
         this.vao = gl.createVertexArray()
         gl.bindVertexArray(this.vao)
         gl.bindBuffer(gl.ARRAY_BUFFER, this.posBuffer)
@@ -86,6 +106,8 @@ export default class TerrainByDEMvisible {
 
 
         // Prepare Passes
+        this.maskPass = createFrameBuffer(gl, [this.maskTexture], null, null)
+
         this.layerRenderBuffer = createRenderBuffer(gl, this.canvasWidth, this.canvasHeight)
         this.layerPass = createFrameBuffer(gl, [this.dnormTexture, this.dHsTexture], null, this.layerRenderBuffer)
 
@@ -124,7 +146,22 @@ export default class TerrainByDEMvisible {
         const skirt = skirtHeight(this.map.transform.zoom, terrain.exaggeration(), terrain.sourceCache._source.tileSize)
         const projMatrix = updateProjMatrix.call(this.map.transform, this.elevationRange[0] * 100.0)
 
+
         // Tick Render
+        // Pass 0: Mask Pass
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.maskPass)
+        gl.viewport(0.0, 0.0, this.canvasWidth, this.canvasHeight)
+        gl.clearColor(0.0, 0.0, 0.0, 0.0)
+        gl.clear(gl.COLOR_BUFFER_BIT)
+        gl.useProgram(this.maskProgram)
+        gl.bindVertexArray(this.maskVao)
+        gl.uniformMatrix4fv(gl.getUniformLocation(this.maskProgram, 'u_matrix'), false, matrix)
+        gl.drawElements(gl.TRIANGLES, this.maskElements, gl.UNSIGNED_SHORT, 0)
+
+
+
+
+
         // Pass 1: Layer Pass
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -150,8 +187,9 @@ export default class TerrainByDEMvisible {
 
             gl.activeTexture(gl.TEXTURE0)
             gl.bindTexture(gl.TEXTURE_2D, tile.demTexture.texture)
-            gl.uniform1i(gl.getUniformLocation(this.program, 'float_dem_texture'), 0)
 
+            gl.uniform1i(gl.getUniformLocation(this.program, 'float_dem_texture'), 0)
+            gl.uniform1i(gl.getUniformLocation(this.program, 'mask_texture'), 1)
             gl.uniform2fv(gl.getUniformLocation(this.program, 'u_dem_tl'), u_dem_tl)
             gl.uniform1f(gl.getUniformLocation(this.program, 'u_dem_scale'), u_dem_scale)
             gl.uniform1f(gl.getUniformLocation(this.program, 'u_exaggeration'), terrain.exaggeration())
@@ -189,10 +227,13 @@ export default class TerrainByDEMvisible {
         gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture)
         gl.activeTexture(gl.TEXTURE2)
         gl.bindTexture(gl.TEXTURE_2D, this.dHsTexture)
+        gl.activeTexture(gl.TEXTURE3)
+        gl.bindTexture(gl.TEXTURE_2D, this.maskTexture)
 
         gl.uniform1i(gl.getUniformLocation(this.showShader, 'srcTexture'), 0)
         gl.uniform1i(gl.getUniformLocation(this.showShader, 'paletteTexture'), 1)
         gl.uniform1i(gl.getUniformLocation(this.showShader, 'dhsTexture'), 2)
+        gl.uniform1i(gl.getUniformLocation(this.showShader,'maskTexture'), 3)
         gl.uniform1f(gl.getUniformLocation(this.showShader, 'interval'), 1.0)
         gl.uniform1f(gl.getUniformLocation(this.showShader, 'withContour'), this.withContour)
         gl.uniform1f(gl.getUniformLocation(this.showShader, 'lightingMode'), this.lightingMode)
@@ -203,7 +244,7 @@ export default class TerrainByDEMvisible {
 
 
 
-        // this.doDebug(this.dHsTexture)
+        // this.doDebug(this.maskTexture)
 
 
 
@@ -566,6 +607,20 @@ function smoothstep(e0, e1, x) {
 }
 
 
+async function parseMultipolygon(geojsonURL) {
+
+    const geojson = (await axios.get(geojsonURL)).data
+    let coordinate = geojson.features[0].geometry.coordinates[0]
+    var data = earcut.flatten(coordinate)
+    var triangle = earcut(data.vertices, data.holes, data.dimensions)
+    coordinate = data.vertices.flat()
+
+
+    return {
+        vertexData: coordinate,
+        indexData: triangle,
+    }
+}
 
 
 //#endregion

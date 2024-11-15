@@ -27,6 +27,7 @@ in vec2 texcoords;
 uniform sampler2D srcTexture;
 uniform sampler2D paletteTexture;
 uniform sampler2D dhsTexture;
+uniform sampler2D maskTexture;
 
 uniform vec2 e;
 uniform float interval;
@@ -84,6 +85,8 @@ float calcHillShadeFactor(vec2 uv, sampler2D hillShadeTexture) {
 }
 
 void main() {
+    if(texture(maskTexture, texcoords).r != 1.0)
+        return;
 
     float factor = 2.0;
     vec4 M = loadTerrainInfo(texcoords, vec2(0.0, 0.0));

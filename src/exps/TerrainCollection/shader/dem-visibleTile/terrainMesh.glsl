@@ -9,6 +9,7 @@ uniform float u_skirt_height;
 uniform float u_exaggeration;
 uniform float u_dem_scale;
 uniform vec2 u_dem_tl;
+
 uniform sampler2D float_dem_texture;
 
 const float MAPBOX_TILE_EXTENT = 8192.0;
@@ -162,5 +163,6 @@ void main() {
 
     outColor2 = vec4(v_hillShade, 0.0, 0.0, 0.0);
     outColor = vec4(v_height, v_normal);
+
 }
 #endif

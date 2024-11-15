@@ -8,7 +8,7 @@ import axios from "axios"
 import mapboxgl from "mapbox-gl"
 
 
-export class TerrainLayer {
+export class TerrainByProxyTile {
 
     constructor() {
 

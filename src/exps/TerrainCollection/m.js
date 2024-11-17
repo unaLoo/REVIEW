@@ -32,7 +32,7 @@ export const initMap = () => {
         container: 'map',
         projection: 'mercator',
         antialias: true,
-        maxZoom: 16,
+        maxZoom:14,
         // minPitch: 0,
         center: MZSVIEWCONFIG.center,
         zoom: MZSVIEWCONFIG.zoom,
@@ -50,7 +50,7 @@ export const initMap = () => {
 
         .on('load', () => {
 
-            map.showTileBoundaries = true;
+            // map.showTileBoundaries = true;
 
             // map.addLayer(new TerrainByDEMvisible())
             // map.addLayer(new TerrainByDEMmipmap())

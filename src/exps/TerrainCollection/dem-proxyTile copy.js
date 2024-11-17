@@ -7,38 +7,6 @@ import earcut from 'earcut'
 import axios from "axios"
 import mapboxgl from "mapbox-gl"
 
-class LRUCache {
-    constructor(capacity) {
-        this.capacity = capacity;
-        this.cache = {};
-        this.keys = [];
-    }
-
-    get(key) {
-        if (key in this.cache) {
-            // 如果键存在，将其移动到数组的末尾
-            this.keys.splice(this.keys.indexOf(key), 1);
-            this.keys.push(key);
-            return this.cache[key];
-        }
-        return 0; // 如果键不在缓存中，返回0
-    }
-
-    put(key, value) {
-        if (key in this.cache) {
-            // 如果键已存在，更新其值并将其移动到数组的末尾
-            this.keys.splice(this.keys.indexOf(key), 1);
-        } else if (Object.keys(this.cache).length >= this.capacity) {
-            // 如果缓存已满，移除数组开头的键（最早加入的键）
-            const oldestKey = this.keys.shift();
-            delete this.cache[oldestKey];
-        }
-        // 将新键值对添加到缓存和数组的末尾
-        this.cache[key] = value;
-        this.keys.push(key);
-    }
-}
-
 
 export default class TerrainByProxyTile {
 
@@ -94,7 +62,7 @@ export default class TerrainByProxyTile {
                 }
             }
         )
-        map.setTerrain({ 'source': 'dem', 'exaggeration': this.exaggeration });
+        map.setTerrain({ 'source': 'dem', 'exaggeration': 0.1 });
         map.addLayer(
             {
                 id: this.proxyLayerID,
@@ -115,9 +83,6 @@ export default class TerrainByProxyTile {
         this.map = map
         this.gl = gl
         enableAllExtensions(gl)
-
-        this.demStore = new LRUCache(100)
-
 
         this.initProxy(map)
         this.proxySouceCache = map.style.getOwnSourceCache(this.proxySourceID);
@@ -181,14 +146,10 @@ export default class TerrainByProxyTile {
         gl.bindVertexArray(null)
 
 
-        this.emptyDEMTexture = createTexture2D(gl, 1, 1, gl.R32F, gl.RED, gl.FLOAT, new Float32Array([this.elevationRange[0]]))
-
 
         await this.initDebug()
 
         this.isReady = true
-
-
 
     }
 
@@ -199,21 +160,50 @@ export default class TerrainByProxyTile {
      * @returns 
      */
     render(gl, matrix) {
-        if (!this.isReady) { this.map.triggerRepaint(); return }
+        if (!this.isReady) return
         this.frame++;
 
         const terrain = this.map.painter.terrain
         const tr = this.map.transform
+        console.log(this.map.painter.terrain, terrain.proxySourceCache)
         const tTiles = this.getTiles(this.proxySouceCache, terrain)
         const projMatrix = updateProjMatrix.call(this.map.transform, this.elevationRange[0] * 100.0)
 
-        const tileIDs = this.getTiles2()
-        const skirt = skirtHeight(tr.zoom, this.exaggeration, terrain.sourceCache._source.tileSize);
-        const sourceCache = terrain.proxySourceCache
-
 
         ////////// new ///////////
+        // const tileIDs = this.getTiles2()
+        // const sourceCache = terrain.proxySourceCache
+        // const skirt = skirtHeight(tr.zoom, this.exaggeration, terrain.sourceCache._source.tileSize);
+        // for(const coord of tileIDs){
 
+        //     const tile = sourceCache.getTile(coord);
+
+        //     const prevDemTile = terrain.prevTerrainTileForTile[coord.key];
+        //     const nextDemTile = terrain.terrainTileForTile[coord.key];
+            
+        //     if (demTileChanged(prevDemTile, nextDemTile)) {
+        //         console.log('dem tile changing')
+        //     }
+
+        //     const drapedTexture = tile.texture
+        //     const uniformValues = {
+        //         'u_matrix': coord.projMatrix,
+        //         'u_image0': 0,
+        //         'u_skirt_height': skirt,
+        //         'u_exaggeration': this.exaggeration,
+        //         'u_dem_size': 514 - 2,
+        //     }
+        //     const demTile = nextDemTile
+        //     const proxyId = tile.tileID.canonical;
+        //     const demId = demTile.tileID.canonical;
+        //     const demScaleBy = Math.pow(2, demId.z - proxyId.z);
+        //     uniformValues[`u_dem_tl`] = [proxyId.x * demScaleBy % 1, proxyId.y * demScaleBy % 1];
+        //     uniformValues[`u_dem_scale`] = demScaleBy;
+           
+        //     //this.emptyDepthTexture.bind(gl.NEAREST, gl.CLAMP_TO_EDGE);
+            
+        // }
+        
 
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -254,52 +244,67 @@ export default class TerrainByProxyTile {
         gl.useProgram(this.meshProgram);
         gl.bindVertexArray(this.meshVao);
 
-        for (const coord of tileIDs) {
+        for (let i = 0; i < tTiles.length; i++) {
 
-            const tile = sourceCache.getTile(coord);
+            // let demTexture = null
 
-            // const prevDemTile = terrain.prevTerrainTileForTile[coord.key];
-            // const nextDemTile = terrain.terrainTileForTile[coord.key];
-            // if (demTileChanged(prevDemTile, nextDemTile)) {
-            //     console.log('dem tile changing')
-            // }
+            // let tile = tTiles[i].tile
+            // let demTile = tTiles[i].demTile
+            // let prevDemTile = tTiles[i].prevDemTile
 
-            const uniformValues = {
-                'u_matrix': coord.projMatrix,
-                // 'u_image0': 0,
-                'u_skirt_height': skirt,
-                'u_exaggeration': this.exaggeration,
-                'u_dem_size': 514 - 2,
+            // let _demTile = null
+
+            // if (demTile && demTile.demTexture) _demTile = demTile
+            // else if (prevDemTile && prevDemTile.demTexture) _demTile = prevDemTile
+            // else { console.log('no dem tile for', tile.tileID.toString()); continue }
+
+            let demTexture = null
+
+            let tile = tTiles[i].tile
+            let demTile = tTiles[i].demTile
+            let prevDemTile = tTiles[i].prevDemTile
+
+            if (tile && demTile && demTile.demTexture) {
+                demTexture = demTile.demTexture.texture
             }
-            // const demTile = nextDemTile
-            const demTile = this.demStore.get(coord.key)
-            if (!demTile) { console.log('no dem tile for', coord.toString()); continue }
+            // else if (tile && prevDemTile && prevDemTile.demTexture) {
+            //     demTexture = prevDemTile.demTexture.texture
+            // } 
+            else {
+                console.log('no dem texture for ', tile.tileID.toString())
+                continue
+            }
+
+
+            //// tile logic ////
+            let posMatrix = tr.calculatePosMatrix(tile.tileID.toUnwrapped(), tr.worldSize);
+            let tileMPMatrix = mat4.multiply([], projMatrix, posMatrix);
+
             const proxyId = tile.tileID.canonical;
             const demId = demTile.tileID.canonical;
             const demScaleBy = Math.pow(2, demId.z - proxyId.z);
-            uniformValues[`u_dem_tl`] = [proxyId.x * demScaleBy % 1, proxyId.y * demScaleBy % 1];
-            uniformValues[`u_dem_scale`] = demScaleBy;
+            const uniforms = {};
 
-            // const drapedTexture = tile.texture
-            let demTexture = this.emptyDEMTexture
-            if (demTile.demTexture && demTile.demTexture.texture)
-                demTexture = demTile.demTexture.texture
+            uniforms[`u_dem_tl`] = [proxyId.x * demScaleBy % 1, proxyId.y * demScaleBy % 1];
+            uniforms['u_dem_size'] = 514 - 2;
+            uniforms[`u_dem_scale`] = demScaleBy;
+            uniforms['u_skirt_height'] = skirtHeight(tr.zoom, this.exaggeration, terrain.sourceCache._source.tileSize);
+            uniforms['u_exaggeration'] = this.exaggeration
 
+            //// tile render ////
             gl.activeTexture(gl.TEXTURE0)
             gl.bindTexture(gl.TEXTURE_2D, demTexture)
-            gl.uniform1i(gl.getUniformLocation(this.meshProgram, 'float_dem_texture'), 0);
 
-            gl.uniformMatrix4fv(gl.getUniformLocation(this.meshProgram, 'u_matrix'), false, uniformValues['u_matrix'])
-            gl.uniform2fv(gl.getUniformLocation(this.meshProgram, 'u_dem_tl'), uniformValues['u_dem_tl']);
-            gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_dem_size'), uniformValues['u_dem_size']);
-            gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_dem_scale'), uniformValues['u_dem_scale']);
-            gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_exaggeration'), uniformValues['u_exaggeration'])
-            gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_skirt_height'), uniformValues['u_skirt_height'])
+            gl.uniformMatrix4fv(gl.getUniformLocation(this.meshProgram, 'u_matrix'), false, tileMPMatrix)
+            gl.uniform1i(gl.getUniformLocation(this.meshProgram, 'float_dem_texture'), 0);
+            gl.uniform2fv(gl.getUniformLocation(this.meshProgram, 'u_dem_tl'), uniforms['u_dem_tl']);
+            gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_dem_size'), uniforms['u_dem_size']);
+            gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_dem_scale'), uniforms['u_dem_scale']);
+            gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_exaggeration'), uniforms['u_exaggeration'])
+            gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_skirt_height'), uniforms['u_skirt_height'])
 
             gl.drawElements(gl.TRIANGLES, this.meshElements, gl.UNSIGNED_SHORT, 0);
-
         }
-
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
         // this.doDebug(this.meshTexture)
@@ -364,26 +369,19 @@ export default class TerrainByProxyTile {
 
     }
 
-    getTiles2() {
+    getTiles2(){
         const terrain = this.map.painter.terrain
         const proxySourceCache = terrain.proxySourceCache
 
         const accumulatedDrapes = []
         const proxies = terrain.proxiedCoords[proxySourceCache.id]
 
-        for (const proxy of proxies) {
+        for(const proxy of proxies){
             const tile = proxySourceCache.getTileByID(proxy.proxyTileKey);
             accumulatedDrapes.push(tile.tileID);
-
-            const prevDemTile = terrain.prevTerrainTileForTile[tile.tileID.key];
-            const nextDemTile = terrain.terrainTileForTile[tile.tileID.key];
-            if (prevDemTile && prevDemTile.demTexture) {
-                this.demStore.put(tile.tileID.key, prevDemTile)
-            }
-            if (nextDemTile && nextDemTile.demTexture) {
-                this.demStore.put(tile.tileID.key, nextDemTile)
-            }
         }
+        // console.log('accumulatedDrapes', accumulatedDrapes.map(t => t.toString()))
+
         return accumulatedDrapes
     }
 

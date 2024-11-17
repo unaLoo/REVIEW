@@ -115,7 +115,7 @@ void main() {
 
     // Countours
     float contourAlpha = 0.8;
-    if(false && withContour == 1.0) {
+    if(withContour == 1.0) {
         if(intervalN < intervalM || intervalE < intervalM || intervalS < intervalM || intervalW < intervalM) {
             fragColor = vec4(intervalColor * 0.8, contourAlpha);
             if(intervalM == 0) {

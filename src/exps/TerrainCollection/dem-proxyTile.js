@@ -102,7 +102,8 @@ export default class TerrainByProxyTile {
                 }
             }
         )
-        map.setTerrain({ 'source': 'dem', 'exaggeration': this.exaggeration });
+        // map.setTerrain({ 'source': 'dem', 'exaggeration': this.exaggeration });
+        map.setTerrain({ 'source': 'dem', 'exaggeration': 1.0 });
         map.addLayer(
             {
                 id: this.proxyLayerID,
@@ -218,14 +219,21 @@ export default class TerrainByProxyTile {
         this.frame++;
 
         const terrain = this.map.painter.terrain
+        // terrain._exaggeration = 30.0
         const tr = this.map.transform
         const tTiles = this.getTiles(this.proxySouceCache, terrain)
-        const projMatrix = updateProjMatrix.call(this.map.transform, this.elevationRange[0] * 100.0)
+        // console.log(tr.elevation, terrain)
+
+        // 远处的瓦片闪烁 --- mapbox有个projctionMatrixCache
+        // 下面这个导致闪烁，minElevation应该是当前视角下最低的瓦片的海拔高度
+        // const projMatrix = updateProjMatrix.call(this.map.transform, this.elevationRange[0] * this.exaggeration)
+        const minElevationInTils = getMinElevationBelowMSL(terrain, this.exaggeration)
+        const projMatrix = updateProjMatrix.call(this.map.transform, minElevationInTils)
+
 
         const tileIDs = this.getTiles2()
         const skirt = skirtHeight(tr.zoom, this.exaggeration, terrain.sourceCache._source.tileSize);
         const sourceCache = terrain.proxySourceCache
-
 
         ////////// new ///////////
 
@@ -278,8 +286,18 @@ export default class TerrainByProxyTile {
             //     console.log('dem tile changing')
             // }
 
+            const proxyTileProjMatrix = coord.projMatrix
+            // const tileMatrix = tr.calculateProjMatrix(tile.tileID.toUnwrapped()) // 和上面一样的效果
+
+            const posMatrix = tr.calculatePosMatrix(tile.tileID.toUnwrapped(), tr.worldSize);
+            const tileMatrix = mat4.multiply(mat4.create(), projMatrix, posMatrix);
+            console.log(tr._projMatrixCache, tile.tileID.toUnwrapped().key)
+            tr._projMatrixCache[tile.tileID.toUnwrapped().key] = new Float32Array(tileMatrix);
+
+
             const uniformValues = {
-                'u_matrix': coord.projMatrix,
+                'u_matrix': tileMatrix,
+                // 'u_matrix': tileMatrix,
                 // 'u_image0': 0,
                 'u_skirt_height': skirt,
                 'u_exaggeration': this.exaggeration,
@@ -562,6 +580,17 @@ function skirtHeight(zoom, terrainExaggeration, tileSize) {
     return 10 * Math.pow(1.5, 22 - zoom) * Math.max(terrainExaggeration, 1.0) * exaggerationFactor;
 }
 
+function getMinElevationBelowMSL(terrain, exaggeration) {
+    let min = 0.0;
+    // The maximum DEM error in meters to be conservative (SRTM).
+    const maxDEMError = 30.0;
+    terrain._visibleDemTiles.filter(tile => tile.dem).forEach(tile => {
+        const minMaxTree = (tile.dem).tree;
+        min = Math.min(min, minMaxTree.minimums[0]);
+    });
+    return min === 0.0 ? min : (min - maxDEMError) * exaggeration;
+}
+
 function farthestPixelDistanceOnPlane(tr, minElevation, pixelsPerMeter) {
     // Find the distance from the center point [width/2 + offset.x, height/2 + offset.y] to the
     // center top point [width/2 + offset.x, 0] in Z units, using the law of sines.
@@ -571,6 +600,8 @@ function farthestPixelDistanceOnPlane(tr, minElevation, pixelsPerMeter) {
 
     // Adjust distance to MSL by the minimum possible elevation visible on screen,
     // this way the far plane is pushed further in the case of negative elevation.
+
+    // 貌似 tr.elevation 就是 terrain
     const minElevationInPixels = minElevation * pixelsPerMeter;
     const cameraToSeaLevelDistance = ((tr._camera.position[2] * tr.worldSize) - minElevationInPixels) / Math.cos(tr._pitch);
     const topHalfSurfaceDistance = Math.sin(fovAboveCenter) * cameraToSeaLevelDistance / Math.sin(Math.max(Math.PI / 2.0 - tr._pitch - fovAboveCenter, 0.01));
@@ -588,14 +619,10 @@ function updateProjMatrix(minElevation) {
     if (!this.height) return;
 
     const offset = this.centerOffset;
-    const isGlobe = this.projection.name === 'globe';
 
     // Z-axis uses pixel coordinates when globe mode is enabled
     const pixelsPerMeter = this.pixelsPerMeter;
 
-    if (this.projection.name === 'globe') {
-        this._mercatorScaleRatio = mercatorZfromAltitude(1, this.center.lat) / mercatorZfromAltitude(1, GLOBE_SCALE_MATCH_LATITUDE);
-    }
 
     const projectionT = getProjectionInterpolationT(this.projection, this.zoom, this.width, this.height, 1024);
 
@@ -629,28 +656,8 @@ function updateProjMatrix(minElevation) {
     cameraToClipPerspective[8] = -offset.x * 2 / this.width;
     cameraToClipPerspective[9] = offset.y * 2 / this.height;
 
-    if (this.isOrthographic) {
-        const cameraToCenterDistance = 0.5 * this.height / Math.tan(this._fov / 2.0) * 1.0;
 
-        // Calculate bounds for orthographic view
-        let top = cameraToCenterDistance * Math.tan(this._fov * 0.5);
-        let right = top * this.aspect;
-        let left = -right;
-        let bottom = -top;
-        // Apply offset/padding
-        right -= offset.x;
-        left -= offset.x;
-        top += offset.y;
-        bottom += offset.y;
-
-        cameraToClip = this._camera.getCameraToClipOrthographic(left, right, bottom, top, this._nearZ, this._farZ);
-
-        const mixValue =
-            this.pitch >= OrthographicPitchTranstionValue ? 1.0 : this.pitch / OrthographicPitchTranstionValue;
-        lerpMatrix(cameraToClip, cameraToClip, cameraToClipPerspective, easeIn(mixValue));
-    } else {
-        cameraToClip = cameraToClipPerspective;
-    }
+    cameraToClip = cameraToClipPerspective;
 
     // @ts-expect-error - TS2345 - Argument of type 'Float64Array' is not assignable to parameter of type 'ReadonlyMat4'.
     const worldToClipPerspective = mat4.mul([], cameraToClipPerspective, worldToCamera);

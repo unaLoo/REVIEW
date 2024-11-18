@@ -1,8 +1,8 @@
 import { mat4 } from "gl-matrix"
-import { createShader, createTexture2D, loadImage, createFrameBuffer, createRenderBuffer, enableAllExtensions, createVBO, createIBO, createCustomMipmapTexture2D, createFboPoolforMipmapTexture, calculateMipmapLevels } from "./glLib"
+import { createShader, createTexture2D, loadImage, createFrameBuffer, createRenderBuffer, enableAllExtensions, createVBO, createIBO, createCustomMipmapTexture2D, createFboPoolforMipmapTexture, calculateMipmapLevels, createShaderFromCode } from "./glLib"
 // import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 // import { MercatorCoordinate } from 'mapbox-gl';
-// import * as dat from 'dat.gui'
+import * as dat from 'dat.gui'
 import earcut from 'earcut'
 import axios from "axios"
 import mapboxgl from "mapbox-gl"
@@ -40,6 +40,12 @@ class LRUCache {
 }
 
 
+//////////////////////////
+import debugCode from './shader/dem-proxyTile/debug.glsl'
+import maskCode from './shader/dem-proxyTile/mask.glsl'
+import meshCode from './shader/dem-proxyTile/mesh.glsl'
+import showCode from './shader/dem-proxyTile/show.glsl'
+
 export default class TerrainByProxyTile {
 
     constructor() {
@@ -59,6 +65,8 @@ export default class TerrainByProxyTile {
         this.canvasWidth = 0
         this.canvasHeight = 0
 
+        this.altitudeDeg = 45.0
+        this.azimuthDeg = 135.0
         this.exaggeration = 30.0
         this.withContour = 1.0
         this.withLighting = 1.0
@@ -108,6 +116,15 @@ export default class TerrainByProxyTile {
         )
     }
 
+    initGUI() {
+        this.gui = new dat.GUI()
+        this.gui.add(this, 'altitudeDeg', 0, 90).step(1).onChange(() => { this.map.triggerRepaint() })
+        this.gui.add(this, 'azimuthDeg', 0, 360).step(1).onChange(() => { this.map.triggerRepaint() })
+        this.gui.add(this, 'exaggeration', 0, 30).step(1).onChange(() => { this.map.triggerRepaint() })
+        this.gui.add(this, 'withContour', 0, 1).step(1).onChange(() => { this.map.triggerRepaint() })
+        this.gui.add(this, 'withLighting', 0, 1).step(1).onChange(() => { this.map.triggerRepaint() })
+
+    }
 
 
 
@@ -115,9 +132,8 @@ export default class TerrainByProxyTile {
         this.map = map
         this.gl = gl
         enableAllExtensions(gl)
-
         this.demStore = new LRUCache(100)
-
+        this.initGUI()
 
         this.initProxy(map)
         this.proxySouceCache = map.style.getOwnSourceCache(this.proxySourceID);
@@ -128,10 +144,9 @@ export default class TerrainByProxyTile {
         ///////////////////////////////////////////////////
         ///////////////// Load shaders
 
-        this.maskProgram = await createShader(gl, '/shaders/1105/mask.glsl')
-        this.meshProgram = await createShader(gl, '/shaders/1105/mesh.glsl')
-        this.showProgram = await createShader(gl, '/shaders/1105/show.glsl')
-
+        this.maskProgram = createShaderFromCode(gl, maskCode)
+        this.meshProgram = createShaderFromCode(gl, meshCode)
+        this.showProgram = createShaderFromCode(gl, showCode)
 
 
         ///////////////////////////////////////////////////
@@ -199,7 +214,7 @@ export default class TerrainByProxyTile {
      * @returns 
      */
     render(gl, matrix) {
-        if (!this.isReady) { this.map.triggerRepaint(); return }
+        if (!this.isReady) { return }
         this.frame++;
 
         const terrain = this.map.painter.terrain
@@ -229,8 +244,6 @@ export default class TerrainByProxyTile {
         gl.uniformMatrix4fv(gl.getUniformLocation(this.maskProgram, 'u_matrix'), false, matrix)
         gl.drawElements(gl.TRIANGLES, this.maskElements, gl.UNSIGNED_SHORT, 0)
 
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-
         // this.doDebug(this.maskTexture)
 
 
@@ -253,7 +266,8 @@ export default class TerrainByProxyTile {
 
         gl.useProgram(this.meshProgram);
         gl.bindVertexArray(this.meshVao);
-
+        gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_altitudeDegree'), this.altitudeDeg)
+        gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_azimuthDegree'), this.azimuthDeg)
         for (const coord of tileIDs) {
 
             const tile = sourceCache.getTile(coord);
@@ -296,11 +310,11 @@ export default class TerrainByProxyTile {
             gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_exaggeration'), uniformValues['u_exaggeration'])
             gl.uniform1f(gl.getUniformLocation(this.meshProgram, 'u_skirt_height'), uniformValues['u_skirt_height'])
 
+
             gl.drawElements(gl.TRIANGLES, this.meshElements, gl.UNSIGNED_SHORT, 0);
 
         }
 
-        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
         // this.doDebug(this.meshTexture)
 
@@ -332,6 +346,7 @@ export default class TerrainByProxyTile {
         gl.uniform2fv(gl.getUniformLocation(this.showProgram, 'e'), this.elevationRange)
         gl.uniform1f(gl.getUniformLocation(this.showProgram, 'interval'), 1.0)
         gl.uniform1f(gl.getUniformLocation(this.showProgram, 'withContour'), this.withContour)
+        gl.uniform1f(gl.getUniformLocation(this.showProgram, 'withLighting'), this.withLighting)
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
@@ -389,7 +404,7 @@ export default class TerrainByProxyTile {
 
 
     async initDebug() {
-        this.debugProgram = await createShader(this.gl, '/shaders/1105/debug.glsl')
+        this.debugProgram = createShaderFromCode(this.gl, debugCode)
     }
     // temp
     doDebug(texture) {

@@ -32,7 +32,7 @@ export const initMap = () => {
         container: 'map',
         projection: 'mercator',
         antialias: true,
-        maxZoom:14,
+        maxZoom: 20,
         // minPitch: 0,
         center: MZSVIEWCONFIG.center,
         zoom: MZSVIEWCONFIG.zoom,

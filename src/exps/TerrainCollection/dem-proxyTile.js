@@ -6,6 +6,7 @@ import * as dat from 'dat.gui'
 import earcut from 'earcut'
 import axios from "axios"
 import mapboxgl from "mapbox-gl"
+import bbox from '@turf/bbox'
 
 class LRUCache {
     constructor(capacity) {
@@ -43,6 +44,7 @@ class LRUCache {
 //////////////////////////
 import debugCode from './shader/dem-proxyTile/debug.glsl'
 import maskCode from './shader/dem-proxyTile/mask.glsl'
+import surfaceNormCode from './shader/dem-proxyTile/surfaceNorm.glsl'
 import meshCode from './shader/dem-proxyTile/mesh.glsl'
 import contourCode from './shader/dem-proxyTile/contour.glsl'
 import surfaceCode from './shader/dem-proxyTile/waterSurface.glsl'
@@ -81,6 +83,12 @@ export default class TerrainByProxyTile {
         this.proxySourceID = 'pxy-source'
 
         this.maskURL = '/mask/CJ.geojson'
+        this.maskBBox = [
+            120.3133719689749483, 31.7559901478936517,
+            121.0006965752893962, 31.7559901478936517,
+            120.3133719689749483, 32.0824775554828747,
+            121.0006965752893962, 32.0824775554828747,
+        ]
 
         this.isReady = false
 
@@ -101,6 +109,7 @@ export default class TerrainByProxyTile {
 
         // for mipmap
         this.level = 0
+
     }
 
     initProxy(map) {
@@ -169,13 +178,19 @@ export default class TerrainByProxyTile {
     }
 
 
-
+    /**
+     * 
+     * @param {*} map 
+     * @param {WebGL2RenderingContext} gl 
+     */
     async onAdd(map, gl) {
         this.map = map
         this.gl = gl
         enableAllExtensions(gl)
         this.demStore = new LRUCache(100)
         this.initGUI()
+
+        this.maskgeojson = (await axios.get(this.maskURL)).data
 
         this.initProxy(map)
         this.proxySouceCache = map.style.getOwnSourceCache(this.proxySourceID);
@@ -186,6 +201,7 @@ export default class TerrainByProxyTile {
         ///////////////////////////////////////////////////
         ///////////////// Load shaders
         this.maskProgram = createShaderFromCode(gl, maskCode)
+        this.surfaceNormProgram = createShaderFromCode(gl, surfaceNormCode)
         this.meshProgram = createShaderFromCode(gl, meshCode)
         this.contourProgram = createShaderFromCode(gl, contourCode)
         this.surfaceProgram = createShaderFromCode(gl, surfaceCode)
@@ -199,24 +215,29 @@ export default class TerrainByProxyTile {
 
         ///////////////////////////////////////////////////
         ///////////////// create textures
-        this.maskTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE)
+        /// mask pass ///
+        this.maskTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.R8, gl.RED, gl.UNSIGNED_BYTE)
 
-        const paletteBitmap = await loadImage('/images/contourPalette1D.png')
-        this.paletteTexture = createTexture2D(gl, paletteBitmap.width, paletteBitmap.height, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, paletteBitmap, gl.LINEAR)
-
-        this.meshTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RG32F, gl.RG, gl.FLOAT)
-
-        const depthTexture = this.meshDepthTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.DEPTH_COMPONENT32F, gl.DEPTH_COMPONENT, gl.FLOAT)
-
-        this.contourCanvasTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE)
-
+        /// surface normal pass ///
         const normalBitmap1 = await loadImage('/images/examples/terrain/WaterNormal1.png')
         const normalBitmap2 = await loadImage('/images/examples/terrain/WaterNormal2.png')
         this.normalTexture1 = createTexture2D(gl, normalBitmap1.width, normalBitmap1.height,
             gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, normalBitmap1, gl.LINEAR, false, true)
         this.normalTexture2 = createTexture2D(gl, normalBitmap2.width, normalBitmap2.height,
             gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, normalBitmap2, gl.LINEAR, false, true)
+        this.surfaceNormTexure = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE)
 
+        /// mesh pass ///
+        this.meshTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RG32F, gl.RG, gl.FLOAT)
+        const depthTexture = this.meshDepthTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.DEPTH_COMPONENT32F, gl.DEPTH_COMPONENT, gl.FLOAT)
+        this.emptyDEMTexture = createTexture2D(gl, 1, 1, gl.R32F, gl.RED, gl.FLOAT, new Float32Array([this.elevationRange[0]]))
+
+        /// contour pass ///
+        const paletteBitmap = await loadImage('/images/contourPalette1D.png')
+        this.paletteTexture = createTexture2D(gl, paletteBitmap.width, paletteBitmap.height, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, paletteBitmap, gl.LINEAR)
+        this.contourCanvasTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE)
+
+        /// water surface pass ///
         this.surfaceCanvasTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE)
 
 
@@ -231,7 +252,7 @@ export default class TerrainByProxyTile {
         //// mask pass ////
         this.maskFbo = createFrameBuffer(gl, [this.maskTexture], null, null)
 
-        let { vertexData, indexData } = await parseMultipolygon(this.maskURL)
+        let { vertexData, indexData } = parseMultipolygon(this.maskgeojson)
         let maskPosBuffer = createVBO(gl, vertexData)
         let maskIdxBuffer = createIBO(gl, indexData) //Uint16 --> gl.UNSIGNED_SHORT
         this.maskElements = indexData.length
@@ -243,6 +264,19 @@ export default class TerrainByProxyTile {
         gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, maskIdxBuffer)
         gl.bindVertexArray(null)
+
+
+        //// surface normal pass ////
+        this.surfaceNormFbo = createFrameBuffer(gl, [this.surfaceNormTexure], null, null)
+        let bbox = getGeoBBOX(this.maskgeojson)
+        let surfaceNormBuffer = createVBO(gl, bbox)
+        this.surfaceNormVAO = gl.createVertexArray()
+        gl.bindVertexArray(this.surfaceNormVAO)
+        gl.enableVertexAttribArray(0)
+        gl.bindBuffer(gl.ARRAY_BUFFER, surfaceNormBuffer)
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0)
+        gl.bindVertexArray(null)
+
 
         //// mesh Pass ////
         // let renderBuffer = createRenderBuffer(gl, this.canvasWidth, this.canvasHeight)
@@ -262,7 +296,6 @@ export default class TerrainByProxyTile {
         gl.bindVertexArray(null)
 
 
-        this.emptyDEMTexture = createTexture2D(gl, 1, 1, gl.R32F, gl.RED, gl.FLOAT, new Float32Array([this.elevationRange[0]]))
 
 
         //// contour pass /////
@@ -328,10 +361,38 @@ export default class TerrainByProxyTile {
         gl.clear(gl.COLOR_BUFFER_BIT)
         gl.useProgram(this.maskProgram)
         gl.bindVertexArray(this.maskVao)
+
         gl.uniformMatrix4fv(gl.getUniformLocation(this.maskProgram, 'u_matrix'), false, matrix)
         gl.drawElements(gl.TRIANGLES, this.maskElements, gl.UNSIGNED_SHORT, 0)
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-        // this.doDebug(this.maskTexture)
+
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Pass 0.5: surface normal pass 
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.surfaceNormFbo)
+        gl.viewport(0.0, 0.0, this.canvasWidth, this.canvasHeight)
+        gl.clearColor(0.0, 0.0, 0.0, 0.0)
+        gl.clear(gl.COLOR_BUFFER_BIT)
+        gl.useProgram(this.surfaceNormProgram)
+        gl.bindVertexArray(this.surfaceNormVAO)
+
+        gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture1)
+        gl.activeTexture(gl.TEXTURE1)
+        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture2)
+
+        gl.uniform1i(gl.getUniformLocation(this.surfaceNormProgram, 'u_normalTexture1'), 0)
+        gl.uniform1i(gl.getUniformLocation(this.surfaceNormProgram, 'u_normalTexture2'), 1)
+        gl.uniform1f(gl.getUniformLocation(this.surfaceNormProgram, 'u_time'), nowTime)
+        gl.uniform4fv(gl.getUniformLocation(this.surfaceNormProgram, 'SamplerParams'), this.SamplerParams)
+        gl.uniformMatrix4fv(gl.getUniformLocation(this.surfaceNormProgram, 'u_matrix'), false, matrix)
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+
+
 
 
 
@@ -413,6 +474,8 @@ export default class TerrainByProxyTile {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
 
+        // this.doDebug(this.maskTexture)
+        // this.doDebug(this.surfaceNormTexure)
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
         // Pass 1.5: water surface pass 
@@ -421,7 +484,7 @@ export default class TerrainByProxyTile {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.surfaceFbo)
         gl.viewport(0.0, 0.0, this.canvasWidth, this.canvasHeight)
 
-        // gl.clearColor(9999.0, 0.0, 0.0, 0.0)
+        gl.clearColor(9999.0, 0.0, 0.0, 0.0)
         gl.clear(gl.COLOR_BUFFER_BIT)
 
         gl.disable(gl.BLEND)
@@ -429,16 +492,13 @@ export default class TerrainByProxyTile {
         gl.useProgram(this.surfaceProgram);
 
         gl.activeTexture(gl.TEXTURE1)
-        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture1)
-        gl.activeTexture(gl.TEXTURE2)
-        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture2)
-        gl.activeTexture(gl.TEXTURE3)
         gl.bindTexture(gl.TEXTURE_2D, this.maskTexture)
+        gl.activeTexture(gl.TEXTURE2)
+        gl.bindTexture(gl.TEXTURE_2D, this.surfaceNormTexure)
 
 
-        gl.uniform1i(gl.getUniformLocation(this.surfaceProgram, 'u_normalTexture1'), 1)
-        gl.uniform1i(gl.getUniformLocation(this.surfaceProgram, 'u_normalTexture2'), 2)
-        gl.uniform1i(gl.getUniformLocation(this.surfaceProgram, 'u_maskTexture'), 3)
+        gl.uniform1i(gl.getUniformLocation(this.surfaceProgram, 'u_maskTexture'), 1)
+        gl.uniform1i(gl.getUniformLocation(this.surfaceProgram, 'u_surfaceNormalTexture'), 2)
         gl.uniform3fv(gl.getUniformLocation(this.surfaceProgram, 'u_cameraPos'), cameraPos)
         gl.uniform1f(gl.getUniformLocation(this.surfaceProgram, 'u_time'), nowTime)
         gl.uniform2fv(gl.getUniformLocation(this.surfaceProgram, 'u_elevationRange'), this.elevationRange)
@@ -455,6 +515,7 @@ export default class TerrainByProxyTile {
             const tile = sourceCache.getTile(coord);
 
             const mapboxProjMatrix = coord.projMatrix
+            const posMatrix = tr.calculatePosMatrix(tile.tileID.toUnwrapped(), tr.worldSize);
 
             // vec4.mul(mat4.create(), vec4.fromValues(1, 0, 0, 0), tr.projMatrix)
             let CS = vec4.transformMat4(vec4.create(), vec4.fromValues(1, 0, 0, 1), mapboxProjMatrix)
@@ -462,6 +523,7 @@ export default class TerrainByProxyTile {
             // console.log(CS)
 
             const uniformValues = {
+                'u_posMatrix': posMatrix,
                 'u_matrix': mapboxProjMatrix,
                 'u_exaggeration': this.exaggeration,
                 'u_dem_size': 514 - 2,
@@ -484,6 +546,7 @@ export default class TerrainByProxyTile {
             gl.bindTexture(gl.TEXTURE_2D, demTexture)
             gl.uniform1i(gl.getUniformLocation(this.surfaceProgram, 'u_depethTexture'), 0)
 
+            gl.uniformMatrix4fv(gl.getUniformLocation(this.surfaceProgram, 'u_posMatrix'), false, uniformValues['u_posMatrix'])
             gl.uniformMatrix4fv(gl.getUniformLocation(this.surfaceProgram, 'u_tileMatrix'), false, uniformValues['u_matrix'])
             gl.uniform2fv(gl.getUniformLocation(this.surfaceProgram, 'u_dem_tl'), uniformValues['u_dem_tl']);
             gl.uniform1f(gl.getUniformLocation(this.surfaceProgram, 'u_dem_size'), uniformValues['u_dem_size']);
@@ -528,36 +591,35 @@ export default class TerrainByProxyTile {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // Pass 2: contour and water Blend Pass
+        // Pass 2: final show pass 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        // gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-        // gl.viewport(0.0, 0.0, gl.canvas.width, gl.canvas.height)
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+        gl.viewport(0.0, 0.0, gl.canvas.width, gl.canvas.height)
 
-        // gl.enable(gl.BLEND)
-        // gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+        gl.enable(gl.BLEND)
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
 
-        // gl.useProgram(this.showProgram)
+        gl.useProgram(this.showProgram)
 
-        // gl.activeTexture(gl.TEXTURE0)
-        // gl.bindTexture(gl.TEXTURE_2D, this.contourCanvasTexture)
-        // gl.activeTexture(gl.TEXTURE1)
-        // gl.bindTexture(gl.TEXTURE_2D, this.surfaceCanvasTexture)
-        // gl.activeTexture(gl.TEXTURE2)
-        // gl.bindTexture(gl.TEXTURE_2D, this.maskTexture)
+        gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_2D, this.contourCanvasTexture)
+        gl.uniform1i(gl.getUniformLocation(this.showProgram, 'showTexture'), 0)
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
-        // gl.uniform1i(gl.getUniformLocation(this.showProgram, 'contourTexture'), 0)
-        // gl.uniform1i(gl.getUniformLocation(this.showProgram, 'waterSurfaceTexture'), 1)
-        // gl.uniform1i(gl.getUniformLocation(this.showProgram, 'contourMaskTexture'), 2)
+        // gl.bindTexture(gl.TEXTURE_2D, null)
 
-
-        // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+        gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_2D, this.surfaceCanvasTexture)
+        gl.uniform1i(gl.getUniformLocation(this.showProgram, 'showTexture'), 0)
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
 
 
 
         // // show surface
-        this.doDebug(this.maskTexture)
+        // this.doDebug(this.maskTexture)
+        // this.doDebug(this.surfaceNormTexure)
         // this.doDebug(this.surfaceCanvasTexture)
         // this.doDebug(this.contourCanvasTexture)
 
@@ -725,9 +787,9 @@ export const initMap = () => {
 
 
 //#region helper functions
-async function parseMultipolygon(geojsonURL) {
+function parseMultipolygon(geojson) {
 
-    const geojson = (await axios.get(geojsonURL)).data
+    // const geojson = (await axios.get(geojsonURL)).data
     let coordinate = geojson.features[0].geometry.coordinates[0]
     var data = earcut.flatten(coordinate)
     var triangle = earcut(data.vertices, data.holes, data.dimensions)
@@ -984,5 +1046,22 @@ function parseRGB(rgbString) {
     } else {
         throw new Error('Invalid RGB string');
     }
+}
+
+function getGeoBBOX(geojson) {
+    const _bbox = bbox(geojson)
+    // [
+    //     120.04373606134682,
+    //     31.173901952209473,
+    //     121.96623240116922,
+    //     32.08401085804678
+    // ]
+
+    const lb = [_bbox[0], _bbox[1]]
+    const rb = [_bbox[2], _bbox[1]]
+    const lt = [_bbox[0], _bbox[3]]
+    const rt = [_bbox[2], _bbox[3]]
+
+    return [lb, rb, lt, rt].flat()
 }
 //#endregion

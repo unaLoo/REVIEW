@@ -32,10 +32,10 @@ precision lowp float;
 
 in vec2 SSpos;
 
-out vec4 FragColor;
+out float FragColor;
 void main() {
-    FragColor = vec4(SSpos,0.0,1.0);
-    // FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    // FragColor = vec4(SSpos,0.0,1.0);
+    FragColor = 1.0;
 
 }
 

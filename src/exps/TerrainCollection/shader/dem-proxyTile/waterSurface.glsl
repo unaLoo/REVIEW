@@ -6,6 +6,7 @@
 
 precision highp float;
 
+uniform mat4 u_posMatrix;
 uniform mat4 u_tileMatrix;
 uniform vec3 u_cameraPos;
 uniform vec2 u_screenSize;
@@ -19,14 +20,19 @@ const vec4[] vertices = vec4[4](vec4(-1.0, -1.0, 0.0, 0.0), vec4(1.0, -1.0, 1.0,
 void main() {
     vec4 attributes = vertices[gl_VertexID];
 
-    vec2 posinWS = vec2(attributes.zw) * 8192.0;
-    vec4 posinCS = u_tileMatrix * vec4(posinWS, 0.0, 1.0);
+    // vec2 posinWS = vec2(attributes.zw) * 8192.0;
+    // vec4 posinCS = u_tileMatrix * vec4(posinWS, 0.0, 1.0);
+    vec4 posinTile = vec4(vec2(attributes.zw) * 8192.0, 0.0, 1.0);
+    vec4 posInWS = u_posMatrix * posinTile;
+    vec4 posInCS = u_tileMatrix * posinTile;
+    // vec2 posinWS = vec2(attributes.zw) * 8192.0;
+    // vec4 posinCS = u_tileMatrix * vec4(posinWS, 0.0, 1.0);
 
     v_uv = attributes.zw;
-    v_positionWS = vec3(posinWS, 0.0);
-    v_positionCS = posinCS;
+    v_positionWS = vec3(posInWS.xy, 0.0);
+    v_positionCS = posInCS;
 
-    gl_Position = posinCS;
+    gl_Position = posInCS;
 }
 
 #endif
@@ -37,15 +43,14 @@ precision highp int;
 precision highp float;
 precision highp usampler2D;
 
+uniform sampler2D u_depethTexture;
+uniform sampler2D u_maskTexture;
+uniform sampler2D u_surfaceNormalTexture;
 uniform vec3 u_cameraPos;
 uniform vec2 u_screenSize;
 uniform vec2 u_dem_tl;
 uniform float u_dem_size;
 uniform float u_dem_scale;
-uniform sampler2D u_depethTexture;
-uniform sampler2D u_normalTexture1;
-uniform sampler2D u_normalTexture2;
-uniform sampler2D u_maskTexture;
 uniform float u_time;
 uniform vec2 u_elevationRange;
 
@@ -89,29 +94,18 @@ float samplerHeight(vec2 uv) {
 ////////////////////////////////////////////
 /////////// Sampler for normal 
 ////////////////////////////////////////////
-vec3 unPack(vec3 norm) {
-    return vec3(norm * 2.0 - 1.0);
-}
 
-vec3 getNormalFromMap(vec2 uv) {
+vec3 getNormalFromMap2(vec2 uv) {
 
-    mat3 TBN = mat3(TangentWS, BitangentWS, NormalWS);// tiling
-    vec2 dim = vec2(textureSize(u_normalTexture1, 0));
-    vec3 firstNormalTS = texture(u_normalTexture1, uv * SamplerParams.x + vec2(u_time / SamplerParams.y, 0.0) / dim).rgb;
-    vec3 secondNormalTS = texture(u_normalTexture2, uv * SamplerParams.z + vec2(u_time / SamplerParams.w, 0.0) / dim).rgb;
-    firstNormalTS = unPack(firstNormalTS);
-    secondNormalTS = unPack(secondNormalTS);
-    vec3 normalTS = normalize(firstNormalTS + secondNormalTS);
-    vec3 normalWS = normalize(TBN * normalTS);
-    return normalWS;
+    return texture(u_surfaceNormalTexture, uv).xyz;
 }
 float validFragment(vec2 uv) {
     return texture(u_maskTexture, uv).r;
 }
 
 void main() {
-    vec2 screenUV = (v_positionCS / v_positionCS.w).xy * 0.5 + 0.5;
-    // vec2 screenUV = gl_FragCoord.xy / u_screenSize;
+    // vec2 screenUV = (v_positionCS / v_positionCS.w).xy * 0.5 + 0.5;
+    vec2 screenUV = gl_FragCoord.xy / u_screenSize;
     /*
         01  11
         00  10
@@ -119,7 +113,6 @@ void main() {
     if(validFragment(screenUV) == 0.0) {
         return;
     }
-  
 
     /////////// waterDepth ///////////
     vec3 viewVector = v_positionWS - u_cameraPos.xyz;
@@ -130,7 +123,8 @@ void main() {
     waterColor = mix(shallowColor, deepColor, waterDepth) / 255.0;
 
     /////////// noraml and Blinn-Phong ///////////
-    vec3 normalWS = getNormalFromMap(v_uv);
+    // vec3 normalWS = getNormalFromMap(v_uv);
+    vec3 normalWS = getNormalFromMap2(screenUV);
 
     vec3 lightDir = normalize(LightPos - vec3(0.0));
     vec3 viewDir = normalize(-1.0 * viewVector);
@@ -141,12 +135,9 @@ void main() {
 
     waterColor += specular;
 
-    bool sky = waterDepth < 9999.0 ? false : true;
-    if(sky) {
-        FragColor = vec4(waterColor, 0.0);
-        return;
-    }
-    FragColor = vec4(waterColor, 0.3);
+
+    float alpha = 0.5;
+    FragColor = vec4(waterColor, alpha);
 
     // FragColor = vec4(waterDepth, 0.5 ,0.5, 1.0);
 

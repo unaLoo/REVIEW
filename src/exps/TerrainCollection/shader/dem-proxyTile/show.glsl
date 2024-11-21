@@ -24,34 +24,16 @@ precision highp usampler2D;
 
 in vec2 texcoords;
 
-uniform sampler2D contourTexture;
-uniform sampler2D waterSurfaceTexture;
-uniform sampler2D maskTexture;
+uniform sampler2D showTexture;
 
 out vec4 fragColor;
 
-float validFragment(vec2 uv) {
-    return texture(maskTexture, uv).r;
-}
 
 void main() {
+    vec4 color = texture(showTexture, texcoords);
 
-    if(validFragment(texcoords) == 0.0) {
-        return;
-    }
-
-    vec4 ContourColor = texture(contourTexture, texcoords);
-    vec4 WaterSurfaceColor = texture(waterSurfaceTexture, texcoords);
-
-    vec3 contourOutColor = ContourColor.rgb;
-    vec3 waterSurfaceOutColor = WaterSurfaceColor.rgb;
-
-    vec3 outColor = mix(contourOutColor, waterSurfaceOutColor, 0.5);
-
-    float alpha = ContourColor.r < 9999.0 ? 1.0 : 0.0;
-    fragColor = vec4(outColor, alpha);
-
-    // fragColor = vec4((M.r + 60.0) / 70.0, 0.5, 0.6, 1.0);
+    float alpha = color.r < 0.4 ? color.a : 0.0;
+    fragColor = vec4(color.rgb, alpha);
 }
 
 #endif

@@ -2,6 +2,7 @@ import mapboxgl from "mapbox-gl"
 import TerrainByDEMvisible from "./dem-visibleTile"
 import TerrainByDEMmipmap from "./dem-visibleMipmap"
 import TerrainByProxyTile from './dem-proxyTile'
+import { WaterLayer } from "./bowenWater"
 
 
 export const initMap = () => {
@@ -17,7 +18,7 @@ export const initMap = () => {
     }
     const MZSVIEWCONFIG = {
         center: [120.53794466757358, 32.03061107103058],
-        zoom: 12,
+        zoom: 8,
         pitch: 0,
         // pitch: 0,
     }
@@ -32,7 +33,7 @@ export const initMap = () => {
         container: 'map',
         projection: 'mercator',
         antialias: true,
-        maxZoom: 20,
+        maxZoom: 18,
         // minPitch: 0,
         center: MZSVIEWCONFIG.center,
         zoom: MZSVIEWCONFIG.zoom,
@@ -55,5 +56,6 @@ export const initMap = () => {
             // map.addLayer(new TerrainByDEMvisible())
             // map.addLayer(new TerrainByDEMmipmap())
             map.addLayer(new TerrainByProxyTile())
+            // map.addLayer(new WaterLayer())
         })
 }

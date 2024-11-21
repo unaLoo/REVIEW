@@ -156,14 +156,20 @@ export function createFrameBuffer(gl, textures, depthTexture, renderBuffer) {
  * @param { number } type 
  * @param { ArrayBufferTypes | ImageBitmap } [ resource ]
  */
-export function createTexture2D(gl, width, height, internalFormat, format, type, resource, filter = gl.NEAREST, generateMips = false) {
+export function createTexture2D(gl, width, height, internalFormat, format, type, resource, filter = gl.NEAREST, generateMips = false, repeat = false) {
 
     const texture = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, texture)
 
     // Set texture parameters
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    if (repeat) {
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+    } else {
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    }
+
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, generateMips ? gl.LINEAR_MIPMAP_LINEAR : filter)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter)
 

@@ -1,4 +1,4 @@
-import { mat4 } from "gl-matrix"
+import { mat4, vec4 } from "gl-matrix"
 import { createShader, createTexture2D, loadImage, createFrameBuffer, createRenderBuffer, enableAllExtensions, createVBO, createIBO, createCustomMipmapTexture2D, createFboPoolforMipmapTexture, calculateMipmapLevels, createShaderFromCode } from "./glLib"
 // import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 // import { MercatorCoordinate } from 'mapbox-gl';
@@ -44,9 +44,31 @@ class LRUCache {
 import debugCode from './shader/dem-proxyTile/debug.glsl'
 import maskCode from './shader/dem-proxyTile/mask.glsl'
 import meshCode from './shader/dem-proxyTile/mesh.glsl'
+import contourCode from './shader/dem-proxyTile/contour.glsl'
+import surfaceCode from './shader/dem-proxyTile/waterSurface.glsl'
 import showCode from './shader/dem-proxyTile/show.glsl'
 
 export default class TerrainByProxyTile {
+
+
+    shallowColor = [84, 157, 255]
+    _shallowColor = `rgb(${this.shallowColor[0]}, ${this.shallowColor[1]}, ${this.shallowColor[2]})`
+    deepColor = [40, 116, 255]
+    _deepColor = `rgb(${this.deepColor[0]}, ${this.deepColor[1]}, ${this.deepColor[2]})`
+
+    SamplerParams = [2, 4.1, 5.2, -44.0]
+    SamplerParams0 = 2
+    SamplerParams1 = 4.1
+    SamplerParams2 = 5.2
+    SamplerParams3 = -44
+
+    LightPos = [0.8, 0.5, 1.0]
+    LightPosX = 0.8
+    LightPosY = 0.5
+    LightPosZ = 1.0
+
+    specularPower = 25
+
 
     constructor() {
 
@@ -71,6 +93,11 @@ export default class TerrainByProxyTile {
         this.withContour = 1.0
         this.withLighting = 1.0
         this.elevationRange = [-66.513999999999996, 4.3745000000000003]
+        // this.shallowColor = [84, 157, 255]
+        // this.deepColor = [40, 116, 255]
+        // this.SamplerParams = [8192.0, 20.0, 8192.0, -15.0]
+        // this.LightPos = [0.8, 0.5, 1.0]
+        // this.specularPower = 100
 
         // for mipmap
         this.level = 0
@@ -103,6 +130,7 @@ export default class TerrainByProxyTile {
             }
         )
         map.setTerrain({ 'source': 'dem', 'exaggeration': this.exaggeration });
+        // map.setTerrain({ 'source': 'dem', 'exaggeration': 1.0 });
         map.addLayer(
             {
                 id: this.proxyLayerID,
@@ -124,6 +152,20 @@ export default class TerrainByProxyTile {
         this.gui.add(this, 'withContour', 0, 1).step(1).onChange(() => { this.map.triggerRepaint() })
         this.gui.add(this, 'withLighting', 0, 1).step(1).onChange(() => { this.map.triggerRepaint() })
 
+        this.gui.addColor(this, '_shallowColor').name('深水').onChange(value => { this.shallowColor = parseRGB(value) });
+        this.gui.addColor(this, '_deepColor').name('潜水').onChange(value => { this.deepColor = parseRGB(value) });
+
+        this.gui.add(this, 'SamplerParams0', 0, 100, 0.1).onChange(value => { this.SamplerParams[0] = value })
+        this.gui.add(this, 'SamplerParams1', 0, 100, 0.1).onChange(value => { this.SamplerParams[1] = value })
+        this.gui.add(this, 'SamplerParams2', 0, 100, 0.1).onChange(value => { this.SamplerParams[2] = value })
+        this.gui.add(this, 'SamplerParams3', -100, 0, 0.1).onChange(value => { this.SamplerParams[3] = value })
+
+        this.gui.add(this, 'LightPosX', -1, 1, 0.1).onChange(value => { this.LightPos[0] = value })
+        this.gui.add(this, 'LightPosY', -1, 1, 0.1).onChange(value => { this.LightPos[1] = value })
+        this.gui.add(this, 'LightPosZ', 0, 1, 0.1).onChange(value => { this.LightPos[2] = value })
+
+        this.gui.add(this, 'specularPower', 0, 1000, 1).onChange(value => { this.specularPower = value })
+
     }
 
 
@@ -143,15 +185,21 @@ export default class TerrainByProxyTile {
 
         ///////////////////////////////////////////////////
         ///////////////// Load shaders
-
         this.maskProgram = createShaderFromCode(gl, maskCode)
         this.meshProgram = createShaderFromCode(gl, meshCode)
+        this.contourProgram = createShaderFromCode(gl, contourCode)
+        this.surfaceProgram = createShaderFromCode(gl, surfaceCode)
         this.showProgram = createShaderFromCode(gl, showCode)
+
+
+
+
+
 
 
         ///////////////////////////////////////////////////
         ///////////////// create textures
-        this.maskTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.R8, gl.RED, gl.UNSIGNED_BYTE)
+        this.maskTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE)
 
         const paletteBitmap = await loadImage('/images/contourPalette1D.png')
         this.paletteTexture = createTexture2D(gl, paletteBitmap.width, paletteBitmap.height, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, paletteBitmap, gl.LINEAR)
@@ -159,6 +207,24 @@ export default class TerrainByProxyTile {
         this.meshTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RG32F, gl.RG, gl.FLOAT)
 
         const depthTexture = this.meshDepthTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.DEPTH_COMPONENT32F, gl.DEPTH_COMPONENT, gl.FLOAT)
+
+        this.contourCanvasTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE)
+
+        const normalBitmap1 = await loadImage('/images/examples/terrain/WaterNormal1.png')
+        const normalBitmap2 = await loadImage('/images/examples/terrain/WaterNormal2.png')
+        this.normalTexture1 = createTexture2D(gl, normalBitmap1.width, normalBitmap1.height,
+            gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, normalBitmap1, gl.LINEAR, false, true)
+        this.normalTexture2 = createTexture2D(gl, normalBitmap2.width, normalBitmap2.height,
+            gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, normalBitmap2, gl.LINEAR, false, true)
+
+        this.surfaceCanvasTexture = createTexture2D(gl, this.canvasWidth, this.canvasHeight, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE)
+
+
+
+
+
+
+
         ///////////////////////////////////////////////////
         ///////////////// Prepare buffers
 
@@ -178,7 +244,7 @@ export default class TerrainByProxyTile {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, maskIdxBuffer)
         gl.bindVertexArray(null)
 
-        //// mesh Pass Vao ////
+        //// mesh Pass ////
         // let renderBuffer = createRenderBuffer(gl, this.canvasWidth, this.canvasHeight)
         this.meshFbo = createFrameBuffer(gl, [this.meshTexture], this.meshDepthTexture, null)
 
@@ -197,6 +263,18 @@ export default class TerrainByProxyTile {
 
 
         this.emptyDEMTexture = createTexture2D(gl, 1, 1, gl.R32F, gl.RED, gl.FLOAT, new Float32Array([this.elevationRange[0]]))
+
+
+        //// contour pass /////
+        this.contourFbo = createFrameBuffer(gl, [this.contourCanvasTexture], null, null)
+
+
+
+        //// water surface pass ////
+        this.surfaceFbo = createFrameBuffer(gl, [this.surfaceCanvasTexture], null, null)
+
+
+
 
 
         await this.initDebug()
@@ -225,9 +303,11 @@ export default class TerrainByProxyTile {
         const tileIDs = this.getTiles2()
         const skirt = skirtHeight(tr.zoom, this.exaggeration, terrain.sourceCache._source.tileSize);
         const sourceCache = terrain.proxySourceCache
+        const nowTime = performance.now()
+        const cameraPos = this.map.transform._camera.position
 
 
-        ////////// new ///////////
+
 
 
 
@@ -243,7 +323,7 @@ export default class TerrainByProxyTile {
         gl.bindVertexArray(this.maskVao)
         gl.uniformMatrix4fv(gl.getUniformLocation(this.maskProgram, 'u_matrix'), false, matrix)
         gl.drawElements(gl.TRIANGLES, this.maskElements, gl.UNSIGNED_SHORT, 0)
-
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
         // this.doDebug(this.maskTexture)
 
 
@@ -255,7 +335,7 @@ export default class TerrainByProxyTile {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.meshFbo)
         gl.viewport(0.0, 0.0, this.canvasWidth, this.canvasHeight)
 
-        gl.clearColor(0.0, 0.0, 0.0, 0.0)
+        gl.clearColor(9999.0, 0.0, 0.0, 0.0)
         gl.clear(gl.COLOR_BUFFER_BIT)
 
         gl.disable(gl.BLEND)
@@ -277,6 +357,11 @@ export default class TerrainByProxyTile {
             // if (demTileChanged(prevDemTile, nextDemTile)) {
             //     console.log('dem tile changing')
             // }
+
+            // let posMatrix = tr.calculatePosMatrix(tile.tileID.toUnwrapped(), tr.worldSize);
+
+            const mapboxProjMatrix = coord.projMatrix
+            // const coord = 
 
             const uniformValues = {
                 'u_matrix': coord.projMatrix,
@@ -314,23 +399,103 @@ export default class TerrainByProxyTile {
             gl.drawElements(gl.TRIANGLES, this.meshElements, gl.UNSIGNED_SHORT, 0);
 
         }
-
-
-        // this.doDebug(this.meshTexture)
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
 
 
 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
-        // Pass 2: final show pass 
+        // Pass 1.5: water surface pass 
         /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.surfaceFbo)
+        gl.viewport(0.0, 0.0, this.canvasWidth, this.canvasHeight)
+
+        // gl.clearColor(9999.0, 0.0, 0.0, 0.0)
+        gl.clear(gl.COLOR_BUFFER_BIT)
+
+        gl.disable(gl.BLEND)
+
+        gl.useProgram(this.surfaceProgram);
+
+        gl.activeTexture(gl.TEXTURE1)
+        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture1)
+        gl.activeTexture(gl.TEXTURE2)
+        gl.bindTexture(gl.TEXTURE_2D, this.normalTexture2)
+        gl.activeTexture(gl.TEXTURE3)
+        gl.bindTexture(gl.TEXTURE_2D, this.maskTexture)
+
+
+        gl.uniform1i(gl.getUniformLocation(this.surfaceProgram, 'u_normalTexture1'), 1)
+        gl.uniform1i(gl.getUniformLocation(this.surfaceProgram, 'u_normalTexture2'), 2)
+        gl.uniform1i(gl.getUniformLocation(this.surfaceProgram, 'u_maskTexture'), 3)
+        gl.uniform3fv(gl.getUniformLocation(this.surfaceProgram, 'u_cameraPos'), cameraPos)
+        gl.uniform1f(gl.getUniformLocation(this.surfaceProgram, 'u_time'), nowTime)
+        gl.uniform2fv(gl.getUniformLocation(this.surfaceProgram, 'u_elevationRange'), this.elevationRange)
+        gl.uniform2fv(gl.getUniformLocation(this.surfaceProgram, 'u_screenSize'), [this.canvasWidth, this.canvasHeight])
+
+        gl.uniform3fv(gl.getUniformLocation(this.surfaceProgram, 'shallowColor'), this.shallowColor)
+        gl.uniform3fv(gl.getUniformLocation(this.surfaceProgram, 'deepColor'), this.deepColor)
+        gl.uniform4fv(gl.getUniformLocation(this.surfaceProgram, 'SamplerParams'), this.SamplerParams)
+        gl.uniform3fv(gl.getUniformLocation(this.surfaceProgram, 'LightPos'), this.LightPos)
+        gl.uniform1f(gl.getUniformLocation(this.surfaceProgram, 'specularPower'), this.specularPower)
+
+        for (const coord of tileIDs) {
+
+            const tile = sourceCache.getTile(coord);
+
+            const mapboxProjMatrix = coord.projMatrix
+
+            // vec4.mul(mat4.create(), vec4.fromValues(1, 0, 0, 0), tr.projMatrix)
+            let CS = vec4.transformMat4(vec4.create(), vec4.fromValues(1, 0, 0, 1), mapboxProjMatrix)
+            let SS = vec4.multiply(vec4.create(), CS, vec4.fromValues(1 / CS[3], 1 / CS[3], 1 / CS[3], 1 / CS[3]))
+            // console.log(CS)
+
+            const uniformValues = {
+                'u_matrix': mapboxProjMatrix,
+                'u_exaggeration': this.exaggeration,
+                'u_dem_size': 514 - 2,
+            }
+            // const demTile = nextDemTile
+            const demTile = this.demStore.get(coord.key)
+            if (!demTile) { console.log('no dem tile for', coord.toString()); continue }
+            const proxyId = tile.tileID.canonical;
+            const demId = demTile.tileID.canonical;
+            const demScaleBy = Math.pow(2, demId.z - proxyId.z);
+            uniformValues[`u_dem_tl`] = [proxyId.x * demScaleBy % 1, proxyId.y * demScaleBy % 1];
+            uniformValues[`u_dem_scale`] = demScaleBy;
+
+            // const drapedTexture = tile.texture
+            let demTexture = this.emptyDEMTexture
+            if (demTile.demTexture && demTile.demTexture.texture)
+                demTexture = demTile.demTexture.texture
+
+            gl.activeTexture(gl.TEXTURE0)
+            gl.bindTexture(gl.TEXTURE_2D, demTexture)
+            gl.uniform1i(gl.getUniformLocation(this.surfaceProgram, 'u_depethTexture'), 0)
+
+            gl.uniformMatrix4fv(gl.getUniformLocation(this.surfaceProgram, 'u_tileMatrix'), false, uniformValues['u_matrix'])
+            gl.uniform2fv(gl.getUniformLocation(this.surfaceProgram, 'u_dem_tl'), uniformValues['u_dem_tl']);
+            gl.uniform1f(gl.getUniformLocation(this.surfaceProgram, 'u_dem_size'), uniformValues['u_dem_size']);
+            gl.uniform1f(gl.getUniformLocation(this.surfaceProgram, 'u_dem_scale'), uniformValues['u_dem_scale']);
+
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+        }
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Pass 2: contour pass --> contourCanvasTexture 
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.contourFbo)
         gl.viewport(0.0, 0.0, gl.canvas.width, gl.canvas.height)
 
-        gl.enable(gl.BLEND)
-        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        gl.disable(gl.BLEND)
 
-        gl.useProgram(this.showProgram)
+        gl.useProgram(this.contourProgram)
 
         gl.activeTexture(gl.TEXTURE0)
         gl.bindTexture(gl.TEXTURE_2D, this.meshTexture)
@@ -340,17 +505,76 @@ export default class TerrainByProxyTile {
         gl.bindTexture(gl.TEXTURE_2D, this.maskTexture)
 
 
-        gl.uniform1i(gl.getUniformLocation(this.showProgram, 'meshTexture'), 0)
-        gl.uniform1i(gl.getUniformLocation(this.showProgram, 'paletteTexture'), 1)
-        gl.uniform1i(gl.getUniformLocation(this.showProgram, 'maskTexture'), 2)
-        gl.uniform2fv(gl.getUniformLocation(this.showProgram, 'e'), this.elevationRange)
-        gl.uniform1f(gl.getUniformLocation(this.showProgram, 'interval'), 1.0)
-        gl.uniform1f(gl.getUniformLocation(this.showProgram, 'withContour'), this.withContour)
-        gl.uniform1f(gl.getUniformLocation(this.showProgram, 'withLighting'), this.withLighting)
+        gl.uniform1i(gl.getUniformLocation(this.contourProgram, 'meshTexture'), 0)
+        gl.uniform1i(gl.getUniformLocation(this.contourProgram, 'paletteTexture'), 1)
+        gl.uniform1i(gl.getUniformLocation(this.contourProgram, 'maskTexture'), 2)
+        gl.uniform2fv(gl.getUniformLocation(this.contourProgram, 'e'), this.elevationRange)
+        gl.uniform1f(gl.getUniformLocation(this.contourProgram, 'interval'), 1.0)
+        gl.uniform1f(gl.getUniformLocation(this.contourProgram, 'withContour'), this.withContour)
+        gl.uniform1f(gl.getUniformLocation(this.contourProgram, 'withLighting'), this.withLighting)
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////
+        // Pass 2: contour and water Blend Pass
+        /////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        // gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+        // gl.viewport(0.0, 0.0, gl.canvas.width, gl.canvas.height)
+
+        // gl.enable(gl.BLEND)
+        // gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+
+        // gl.useProgram(this.showProgram)
+
+        // gl.activeTexture(gl.TEXTURE0)
+        // gl.bindTexture(gl.TEXTURE_2D, this.contourCanvasTexture)
+        // gl.activeTexture(gl.TEXTURE1)
+        // gl.bindTexture(gl.TEXTURE_2D, this.surfaceCanvasTexture)
+        // gl.activeTexture(gl.TEXTURE2)
+        // gl.bindTexture(gl.TEXTURE_2D, this.maskTexture)
+
+        // gl.uniform1i(gl.getUniformLocation(this.showProgram, 'contourTexture'), 0)
+        // gl.uniform1i(gl.getUniformLocation(this.showProgram, 'waterSurfaceTexture'), 1)
+        // gl.uniform1i(gl.getUniformLocation(this.showProgram, 'contourMaskTexture'), 2)
 
 
+        // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+
+
+
+        // // show surface
+        this.doDebug(this.maskTexture)
+        // this.doDebug(this.surfaceCanvasTexture)
+        // this.doDebug(this.contourCanvasTexture)
+
+
+
+        // gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+        // gl.disable(gl.BLEND)
+        // gl.viewport(0.0, 0.0, gl.canvas.width, gl.canvas.height)
+        // gl.useProgram(this.debugProgram)
+        // gl.activeTexture(gl.TEXTURE0)
+        // gl.bindTexture(gl.TEXTURE_2D, this.contourCanvasTexture)
+        // gl.activeTexture(gl.TEXTURE1)
+        // gl.bindTexture(gl.TEXTURE_2D, this.paletteTexture)
+        // gl.uniform1i(gl.getUniformLocation(this.debugProgram, 'debugTexture'), 0)
+        // gl.uniform1i(gl.getUniformLocation(this.debugProgram, 'paletteTexture'), 1)
+        // gl.uniform1f(gl.getUniformLocation(this.debugProgram, 'mipmap'), 0.0)
+        // gl.uniform1f(gl.getUniformLocation(this.debugProgram, 'debugLevel'), 0)
+        // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+        // gl.disable(gl.BLEND)
+        // gl.viewport(0.0, 0.0, gl.canvas.width, gl.canvas.height)
+        // gl.activeTexture(gl.TEXTURE0)
+        // gl.bindTexture(gl.TEXTURE_2D, this.surfaceCanvasTexture)
+        // gl.uniform1i(gl.getUniformLocation(this.debugProgram, 'debugTexture'), 0)
+        // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+
+        this.map.triggerRepaint()
     }
 
     getTiles(sourceCache) {
@@ -413,6 +637,9 @@ export default class TerrainByProxyTile {
 
         gl.enable(gl.BLEND)
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+        // gl.disable(gl.BLEND)
+        // gl.clearColor(1.0, 0.0, 0.0, 1.0)
+        // gl.clear(gl.COLOR_BUFFER_BIT)
         gl.viewport(0.0, 0.0, gl.canvas.width, gl.canvas.height)
         gl.useProgram(this.debugProgram)
         gl.activeTexture(gl.TEXTURE0)
@@ -423,6 +650,7 @@ export default class TerrainByProxyTile {
         gl.uniform1i(gl.getUniformLocation(this.debugProgram, 'debugTexture'), 0)
         gl.uniform1i(gl.getUniformLocation(this.debugProgram, 'paletteTexture'), 1)
         gl.uniform1f(gl.getUniformLocation(this.debugProgram, 'debugLevel'), 0)
+        gl.uniform2fv(gl.getUniformLocation(this.debugProgram, 'u_screenSize'), [this.canvasWidth, this.canvasHeight])
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
     }
@@ -747,4 +975,14 @@ function demTileChanged(prev, next) {
     return prev.tileID.key !== next.tileID.key;
 }
 
+function parseRGB(rgbString) {
+    const regex = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/;
+    const match = rgbString.match(regex);
+    if (match) {
+        const [_, r, g, b] = match;
+        return [parseInt(r), parseInt(g), parseInt(b)];
+    } else {
+        throw new Error('Invalid RGB string');
+    }
+}
 //#endregion

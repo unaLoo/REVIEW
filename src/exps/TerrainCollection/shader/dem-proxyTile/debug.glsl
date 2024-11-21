@@ -25,6 +25,7 @@ uniform sampler2D debugTexture;
 uniform sampler2D paletteTexture;
 uniform float mipmap;
 uniform float debugLevel;
+uniform vec2 u_screenSize;
 
 out vec4 fragColor;
 
@@ -58,14 +59,18 @@ void main() {
     //     fragColor = vec4(vec3(M.r), 0.5);
 
     // }
-    vec4 M = texture(debugTexture, texcoords);
+    vec2 screenUV = gl_FragCoord.xy / u_screenSize;
+    // fragColor = vec4(screenUV, 0.0, 0.8);
+    vec4 M = texture(debugTexture, screenUV);
+    fragColor = vec4(M);
+    // fragColor = vec4(0.5, 0.0, 0.0, 1.0);
     // fragColor = vec4(M.r,0.0,0.0,1.0);
     // float alpha = M.r == 9999.0? 0.0 : 0.5;
 
     // vec2 e = vec2(-66.5, 4.4);
     // float normHeight = (M.r - e.r) / length(e);
     // fragColor = vec4(normHeight, 0.5, 0.3, 1.0);
-    fragColor = vec4((M.r + 60.0) / 70.0, 0.4, 0.45, 1.0);
+    // fragColor = vec4((M.r + 60.0) / 70.0, 0.4, 0.45, 1.0);
     // fragColor = vec4(M.r, 0.0, 0.0, 0.5);
 
     // for dem texture

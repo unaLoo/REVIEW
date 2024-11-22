@@ -484,7 +484,7 @@ export default class TerrainByProxyTile {
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.surfaceFbo)
         gl.viewport(0.0, 0.0, this.canvasWidth, this.canvasHeight)
 
-        gl.clearColor(9999.0, 0.0, 0.0, 0.0)
+        gl.clearColor(0.0, 0.0, 0.0, 0.0)
         gl.clear(gl.COLOR_BUFFER_BIT)
 
         gl.disable(gl.BLEND)
@@ -602,16 +602,19 @@ export default class TerrainByProxyTile {
 
         gl.useProgram(this.showProgram)
 
-        gl.activeTexture(gl.TEXTURE0)
-        gl.bindTexture(gl.TEXTURE_2D, this.contourCanvasTexture)
-        gl.uniform1i(gl.getUniformLocation(this.showProgram, 'showTexture'), 0)
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
+        // gl.activeTexture(gl.TEXTURE0)
+        // gl.bindTexture(gl.TEXTURE_2D, this.contourCanvasTexture)
+        // gl.uniform1i(gl.getUniformLocation(this.showProgram, 'showTexture'), 0)
+        // gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
         // gl.bindTexture(gl.TEXTURE_2D, null)
 
         gl.activeTexture(gl.TEXTURE0)
+        gl.bindTexture(gl.TEXTURE_2D, this.contourCanvasTexture)
+        gl.activeTexture(gl.TEXTURE1)
         gl.bindTexture(gl.TEXTURE_2D, this.surfaceCanvasTexture)
-        gl.uniform1i(gl.getUniformLocation(this.showProgram, 'showTexture'), 0)
+        gl.uniform1i(gl.getUniformLocation(this.showProgram, 'showTexture1'), 0)
+        gl.uniform1i(gl.getUniformLocation(this.showProgram, 'showTexture2'), 1)
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
 
 

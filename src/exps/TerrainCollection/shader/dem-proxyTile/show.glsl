@@ -24,16 +24,18 @@ precision highp usampler2D;
 
 in vec2 texcoords;
 
-uniform sampler2D showTexture;
+uniform sampler2D showTexture1;
+uniform sampler2D showTexture2;
 
 out vec4 fragColor;
 
 
 void main() {
-    vec4 color = texture(showTexture, texcoords);
-
-    float alpha = color.r < 0.4 ? color.a : 0.0;
-    fragColor = vec4(color.rgb, alpha);
+    vec4 color1 = texture(showTexture1, texcoords);
+    vec4 color2 = texture(showTexture2, texcoords);
+    vec4 color = mix(color1, color2, 0.5);
+    // float alpha = color.r < 0.4 ? color.a : 0.0;
+    fragColor = vec4(color);
 }
 
 #endif

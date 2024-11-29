@@ -58,11 +58,11 @@ export default class TerrainByProxyTile {
     deepColor = [40, 116, 255]
     _deepColor = `rgb(${this.deepColor[0]}, ${this.deepColor[1]}, ${this.deepColor[2]})`
 
-    SamplerParams = [2, 4.1, 5.2, -44.0]
-    SamplerParams0 = 2
-    SamplerParams1 = 4.1
-    SamplerParams2 = 5.2
-    SamplerParams3 = -44
+    SamplerParams = [12.8, 6.3, 20.4, -66.0]
+    SamplerParams0 = 12.8
+    SamplerParams1 = 6.3
+    SamplerParams2 = 20.4
+    SamplerParams3 = -66
 
     LightPos = [0.8, 0.5, 1.0]
     LightPosX = 0.8

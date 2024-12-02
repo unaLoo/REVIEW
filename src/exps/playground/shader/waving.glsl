@@ -13,9 +13,9 @@ void main() {
 
 precision highp float;
 
-uniform vec3 iResolution; // in pixels
+uniform vec2 iResolution; // in pixels
 uniform float iTime; // in seconds
-uniform vec4 iMouse; // xy: current position, zw: click position
+uniform vec2 iMouse; // xy: current position, zw: click position
 
 out vec4 fragColor;
 
@@ -26,10 +26,46 @@ out vec4 fragColor;
 #define ITERATIONS_NORMAL 36 // waves iterations when calculating normals
 #define NormalizedMouse (iMouse.xy / iResolution.xy) // normalize mouse coords
 
+vec2 wavedx(vec2 position, vec2 direction, float frequency, float timeshift) {
+    float x = dot(position, direction) * frequency + timeshift;
+    float wave = exp(sin(x) - 1.0);
+    float dx = wave * cos(x);
+    return vec2(wave, -dx);
+}
+
 // 将多个不同尺度、频率的波形(octaves)叠加求和，计算水体波浪高度
 float calcWave(vec2 position, int iterations) {
+    float wavePhaseShift = length(position) * 0.1; // this is to avoid every octave having exactly the same phase everywhere
+    float iter = 0.0; // this will help generating well distributed wave directions
+    float frequency = 1.0; // frequency of the wave, this will change every iteration
+    float timeMultiplier = 2.0; // time multiplier for the wave, this will change every iteration
+    float weight = 1.0;// weight in final sum for the wave, this will change every iteration
+    float sumOfValues = 0.0; // will store final sum of values
+    float sumOfWeights = 0.0; // will store final sum of weights
+    for(int i = 0; i < iterations; i++) {
+    // generate some wave direction that looks kind of random
+        vec2 p = vec2(sin(iter), cos(iter));
 
-    return 0.0;
+    // calculate wave data
+        vec2 res = wavedx(position, p, frequency, iTime * timeMultiplier + wavePhaseShift);
+
+    // shift position around according to wave drag and derivative of the wave
+        position += p * res.y * weight * DRAG_MULT;
+
+    // add the results to sums
+        sumOfValues += res.x * weight;
+        sumOfWeights += weight;
+
+    // modify next octave ;
+        weight = mix(weight, 0.0, 0.2);
+        frequency *= 1.18;
+        timeMultiplier *= 1.07;
+
+    // add some kind of random value to make next wave look random too
+        iter += 1232.399963;
+    }
+    // calculate and return
+    return sumOfValues / sumOfWeights;
 }
 
 // 返回相机射线，想象以相机为原点出发的向量
@@ -60,7 +96,7 @@ vec3 intersectPlane(vec3 cameraPos, vec3 cameraRay, vec3 planePos, vec3 planeNor
 }
 
 // 在两个hitpos之间进行raymarching, 获取wave的hitpos
-vec3 raymarchwater(vec3 cameraPos, vec3 highHitPos, vec3 lowHitPos, float waterDepth) {
+float raymarchwater(vec3 cameraPos, vec3 highHitPos, vec3 lowHitPos, float waterDepth) {
     vec3 pos = highHitPos;
     vec3 dir = normalize(lowHitPos - highHitPos);
     for(int i = 0; i < 64; i++) {
@@ -80,7 +116,7 @@ vec3 raymarchwater(vec3 cameraPos, vec3 highHitPos, vec3 lowHitPos, float waterD
 vec3 calcNormal(vec3 pos, float offset, float waterDepth) {
 
     /// main pos wave
-    float height = calcWave(pos.xz, ITERATIONS_NORMAL) * WATER_DEPTH; // (0 -> depth)
+    float height = calcWave(pos.xz, ITERATIONS_NORMAL) * waterDepth; // (0 -> depth)
     vec3 wavePosMain = vec3(pos.x, height, pos.z);
 
     /////////////////// in the plane of xz
@@ -91,16 +127,15 @@ vec3 calcNormal(vec3 pos, float offset, float waterDepth) {
     vec3 offsetPos1 = vec3(pos.x - offset, 0.0, pos.z);
     vec3 offsetPos2 = vec3(pos.x, 0.0, pos.z + offset);
 
-    float height1 = calcWave(offsetPos1.xz, ITERATIONS_NORMAL) * WATER_DEPTH;
-    float height2 = calcWave(offsetPos2.xz, ITERATIONS_NORMAL) * WATER_DEPTH;
+    float height1 = calcWave(offsetPos1.xz, ITERATIONS_NORMAL) * waterDepth;
+    float height2 = calcWave(offsetPos2.xz, ITERATIONS_NORMAL) * waterDepth;
 
     vec3 wavePos1 = vec3(offsetPos1.x, height1, offsetPos1.z);
     vec3 wavePos2 = vec3(offsetPos2.x, height2, offsetPos2.z);
 
-    vec3 normal = normalize(cross(wavePos2 - wavePosMain, wavePos1 - wavePosMain));
+    vec3 normal = normalize(cross(wavePos1 - wavePosMain, wavePos2 - wavePosMain));
 
     return normal;
-
 }
 
 void main() {
@@ -108,9 +143,11 @@ void main() {
     vec2 fragCoord = gl_FragCoord.xy;
     vec3 ray = getRay(fragCoord);
 
-    ////////// render the sky
+    //////// render the sky
     if(ray.y >= 0.0) {
-        fragColor = vec4(0.0, 0.0, 0.6 + ray.y * 0.4, 0.5);
+        vec3 skyColorbottom = vec3(0.47, 0.73, 1.0);
+        vec3 skyColortop = vec3(0.0, 0.24, 0.44);
+        fragColor = mix(vec4(skyColorbottom, 1.0), vec4(skyColortop, 1.0), ray.y);
         return;
     }
 
@@ -127,18 +164,44 @@ void main() {
 
     // raymarch the wave hit pos
     float dist = raymarchwater(cameraPos, highPlaneHitPos, lowPlaneHitPos, WATER_DEPTH);
-    float waterHitPos = cameraPos + ray * dist;
+    vec3 waterHitPos = cameraPos + ray * dist;
 
+    // calculate normal
     vec3 normal = calcNormal(waterHitPos, 0.01, WATER_DEPTH);
 
+    // smooth the normal with distance to avoid disturbing high frequency noise
+    normal = mix(normal, vec3(0.0, 1.0, 0.0), 0.8 * min(1.0, sqrt(dist * 0.01) * 1.1));
 
-    /// just ....
+    // ray 是 视线向量, normal是水面像元的法向量, R是反射向量, 应根据R取得反射颜色
+    vec3 R = normalize(reflect(ray, normal));
+    R.y = abs(R.y); // 限制R的y分量的范围
 
+    ////// temp ///////
+    vec3 skyColorbottom = vec3(0.47, 0.73, 1.0);
+    vec3 skyColortop = vec3(0.0, 0.24, 0.44);
+    vec3 finalReflectColor = mix((skyColorbottom), (skyColortop), R.y);
+
+    fragColor = vec4(finalReflectColor, 1.0);
 
     ///////// DEBUG ///////////
-    fragColor = vec4(normal, 1.0);
+    // vec3 sunPosition = vec3(0.2, 10.0, 0.1);
+    // vec3 sunColor = vec3(0.0, 0.47, 0.73);
+    // vec3 sunDir = normalize(sunPosition - waterHitPos);
+    // float sunDot = max(dot(normal, sunDir), 0.0);
+    // vec3 sun = sunColor * sunDot;
+    // fragColor = vec4(sun, 1.0);
+    // fragColor = vec4(normal, 1.0);
+    // fragColor = vec4(R, 1.0);
 
+    // vec2 mouseCoord = vec2(NormalizedMouse.x, 1.0 - NormalizedMouse.y);
+    // vec2 screenCoord = fragCoord / iResolution;
 
+    // fragColor = vec4( fragCoord/ iResolution, 0.0, 1.0);
+    // fragColor = vec4(0.5, 0.5, 0.4, 1.0);
+
+    // if(distance(screenCoord, mouseCoord) < 0.005) {
+    //     fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    // }
 
 }
 

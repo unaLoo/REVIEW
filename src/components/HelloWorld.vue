@@ -17,8 +17,8 @@ import { onMounted } from 'vue'
 // import { initMap } from '../exps/08invasion/terrainV0.js';
 // import { initMap } from '../exps/good/TERRAIN.js';
 // import { main } from '../exps/playground/MRT.js'
-// import { main } from '../exps/playground/wave.js'
-import { main } from '../three/main.js'
+import { main } from '../exps/playground/waving.js'
+// import { main } from '../three/main.js'
 
 // import { initMap } from '../exps/TerrainCollection/m.js'
 

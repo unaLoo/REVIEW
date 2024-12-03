@@ -17,8 +17,9 @@ import { onMounted } from 'vue'
 // import { initMap } from '../exps/08invasion/terrainV0.js';
 // import { initMap } from '../exps/good/TERRAIN.js';
 // import { main } from '../exps/playground/MRT.js'
-import { main } from '../exps/playground/waving.js'
+// import { main } from '../exps/playground/waving.js'
 // import { main } from '../three/main.js'
+import { initMap } from '../exps/playground/wavingWithMap.js';
 
 // import { initMap } from '../exps/TerrainCollection/m.js'
 
@@ -56,10 +57,10 @@ onMounted(() => {
   //   }
   // })
 
-  // initMap()
+  initMap()
   // simpleArrow()
   // instansDraw()
-  main()
+  // main()
   // prepare()
   // main()
 
@@ -85,8 +86,8 @@ onMounted(() => {
     <!--<div id="div1" class="anim">div1</div>-->
     <!-- <hr> -->
     <!-- <div class="addon" ></div> -->
-    <canvas id='playground'></canvas>
-    <!-- <div id="map"></div> -->
+    <!-- <canvas id='playground'></canvas> -->
+    <div id="map"></div>
     <!-- <div id="playground"></div> -->
     <!-- <div id="progress">
       <el-progress :percentage="percentage" :stroke-width="15" striped />

@@ -1,21 +1,51 @@
 #ifdef VERTEX_SHADER
-// full screen quad
+
+#define PI 3.141592653589793
+#define RAD_TO_DEG 180.0/PI
+#define DEG_TO_RAD PI/180.0
+
 precision highp float;
 
-vec4[] vertices = vec4[4](vec4(-1.0, -1.0, 0.0, 0.0), vec4(1.0, -1.0, 1.0, 0.0), vec4(-1.0, 1.0, 0.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0));
-void main() {
-    vec4 attributes = vertices[gl_VertexID];
-    gl_Position = vec4(attributes.xy, 0.0, 1.0);
+layout(location = 0) in vec2 a_pos;
+
+uniform mat4 viewMatrix;
+uniform mat4 projMatrix;
+uniform mat4 u_matrix;
+
+out vec4 world_pos;
+out vec4 view_pos;
+out vec4 clip_pos;
+out vec4 screen_pos;
+
+//////// functions ///////////
+float mercatorXfromLng(float lng) {
+    return (180.0 + lng) / 360.0;
 }
+float mercatorYfromLat(float lat) {
+    return (180.0 - (RAD_TO_DEG * log(tan(PI / 4.0 + lat / 2.0 * DEG_TO_RAD)))) / 360.0;
+}
+
+void main() {
+    vec2 pos = vec2(mercatorXfromLng(a_pos.x), mercatorYfromLat(a_pos.y));
+    world_pos = vec4(pos, 0.0, 1.0);
+    // view_pos = viewMatrix * world_pos;
+    // clip_pos = projMatrix * view_pos;
+    // mat4 vp = viewMatrix * projMatrix ;
+    mat4 vp = u_matrix;
+    clip_pos = vp * world_pos;
+    // clip_pos = u_matrix * world_pos;
+    // screen_pos = clip_pos / clip_pos.w;
+    // gl_Position = u_matrix * vec4(pos, 0.0, 1.0);
+    gl_Position = clip_pos;
+}
+
 #endif
-
 #ifdef FRAGMENT_SHADER
-
 precision highp float;
 
 uniform vec2 iResolution; // in pixels
 uniform float iTime; // in seconds
-uniform vec2 iMouse; // xy: current position, zw: click position
+// uniform vec2 iMouse; // xy: current position, zw: click position
 
 out vec4 fragColor;
 
@@ -24,7 +54,7 @@ out vec4 fragColor;
 #define CAMERA_HEIGHT 1.5 // how high the camera should be
 #define ITERATIONS_RAYMARCH 12 // waves iterations of raymarching
 #define ITERATIONS_NORMAL 36 // waves iterations when calculating normals
-#define NormalizedMouse (iMouse.xy / iResolution.xy) // normalize mouse coords
+// #define NormalizedMouse (iMouse.xy / iResolution.xy) // normalize mouse coords
 
 vec2 wavedx(vec2 position, vec2 direction, float frequency, float timeshift) {
     float x = dot(position, direction) * frequency + timeshift;
@@ -101,12 +131,12 @@ float raymarchwater(vec3 cameraPos, vec3 highHitPos, vec3 lowHitPos, float water
     vec3 dir = normalize(lowHitPos - highHitPos);
     for(int i = 0; i < 64; i++) {
         // 计算pos处的wave高度
-        float height = (calcWave(pos.xz, ITERATIONS_RAYMARCH) - 1.0) * WATER_DEPTH; // (-depth, 0)
+        float height = (calcWave(pos.xy, ITERATIONS_RAYMARCH) - 1.0) * waterDepth; // (-depth, 0)
         // hit 判断
-        if(height + 0.01 > pos.y) {
+        if(height + 0.01 > pos.z) {
             return distance(pos, cameraPos);
         } else {
-            pos += dir * (pos.y - height);
+            pos += dir * (pos.z - height);
         }
     }
     return distance(highHitPos, cameraPos);
@@ -116,22 +146,22 @@ float raymarchwater(vec3 cameraPos, vec3 highHitPos, vec3 lowHitPos, float water
 vec3 calcNormal(vec3 pos, float offset, float waterDepth) {
 
     /// main pos wave
-    float height = calcWave(pos.xz, ITERATIONS_NORMAL) * waterDepth; // (0 -> depth)
-    vec3 wavePosMain = vec3(pos.x, height, pos.z);
+    float height = calcWave(pos.xy, ITERATIONS_NORMAL) * waterDepth; // (0 -> depth)
+    vec3 wavePosMain = vec3(pos.xy, height);
 
     /////////////////// in the plane of xz
     // |  --   |   --  |  --  | 
     // | oPos1 |  Mpos |  --  |
     // |  --   | oPos2 |  --  |
     //////////////////
-    vec3 offsetPos1 = vec3(pos.x - offset, 0.0, pos.z);
-    vec3 offsetPos2 = vec3(pos.x, 0.0, pos.z + offset);
+    vec3 offsetPos1 = vec3(pos.x - offset, pos.y, 0.0);
+    vec3 offsetPos2 = vec3(pos.x, pos.y + offset, 0.0);
 
-    float height1 = calcWave(offsetPos1.xz, ITERATIONS_NORMAL) * waterDepth;
-    float height2 = calcWave(offsetPos2.xz, ITERATIONS_NORMAL) * waterDepth;
+    float height1 = calcWave(offsetPos1.xy, ITERATIONS_NORMAL) * waterDepth;
+    float height2 = calcWave(offsetPos2.xy, ITERATIONS_NORMAL) * waterDepth;
 
-    vec3 wavePos1 = vec3(offsetPos1.x, height1, offsetPos1.z);
-    vec3 wavePos2 = vec3(offsetPos2.x, height2, offsetPos2.z);
+    vec3 wavePos1 = vec3(offsetPos1.xy, height1);
+    vec3 wavePos2 = vec3(offsetPos2.xy, height2);
 
     vec3 normal = normalize(cross(wavePos1 - wavePosMain, wavePos2 - wavePosMain));
 
@@ -154,13 +184,16 @@ void main() {
     ///////// render water
 
     // positions in world space
+    // vec3 waterPlaneHigh = vec3(0.0, 0.0, 0.0);
+    // vec3 waterPlaneLow = vec3(0.0, -1.0 * WATER_DEPTH, 0.0);
     vec3 waterPlaneHigh = vec3(0.0, 0.0, 0.0);
-    vec3 waterPlaneLow = vec3(0.0, -1.0 * WATER_DEPTH, 0.0);
-    vec3 cameraPos = vec3(0.5, CAMERA_HEIGHT, 1.0);
+    vec3 waterPlaneLow = vec3(0.0, 0.0, -1.0 * WATER_DEPTH);
+
+    vec3 cameraPos = vec3(0.5, 1.0, CAMERA_HEIGHT);
 
     // calculate intersection of ray with water plane
-    vec3 highPlaneHitPos = intersectPlane(cameraPos, ray, waterPlaneHigh, vec3(0.0, 1.0, 0.0));
-    vec3 lowPlaneHitPos = intersectPlane(cameraPos, ray, waterPlaneLow, vec3(0.0, 1.0, 0.0));
+    vec3 highPlaneHitPos = intersectPlane(cameraPos, ray, waterPlaneHigh, vec3(0.0, 0.0, 1.0));
+    vec3 lowPlaneHitPos = intersectPlane(cameraPos, ray, waterPlaneLow, vec3(0.0, 0.0, 1.0));
 
     // raymarch the wave hit pos
     float dist = raymarchwater(cameraPos, highPlaneHitPos, lowPlaneHitPos, WATER_DEPTH);
@@ -170,11 +203,11 @@ void main() {
     vec3 normal = calcNormal(waterHitPos, 0.01, WATER_DEPTH);
 
     // smooth the normal with distance to avoid disturbing high frequency noise
-    normal = mix(normal, vec3(0.0, 1.0, 0.0), 0.8 * min(1.0, sqrt(dist * 0.01) * 1.1));
+    // normal = mix(normal, vec3(0.0, 0.0, 1.0), 0.8 * min(1.0, sqrt(dist * 0.01) * 1.1));
 
     // ray 是 视线向量, normal是水面像元的法向量, R是反射向量, 应根据R取得反射颜色
     vec3 R = normalize(reflect(ray, normal));
-    R.y = abs(R.y); // 限制R的y分量的范围
+    // R.y = abs(R.y); // 限制R的y分量的范围
 
     ////// temp ///////
     vec3 skyColorbottom = vec3(0.47, 0.73, 1.0);
@@ -182,6 +215,7 @@ void main() {
     vec3 finalReflectColor = mix(skyColorbottom, skyColortop, R.y);
 
     fragColor = vec4(finalReflectColor, 1.0);
+    // fragColor = vec4(0.0, 0.0, 0.0, 1.0);
 
     ///////// DEBUG ///////////
     // vec3 sunPosition = vec3(0.2, 10.0, 0.1);
@@ -204,5 +238,4 @@ void main() {
     // }
 
 }
-
 #endif

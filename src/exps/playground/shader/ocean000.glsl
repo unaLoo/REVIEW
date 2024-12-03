@@ -1,21 +1,51 @@
 #ifdef VERTEX_SHADER
-// full screen quad
+
+#define PI 3.141592653589793
+#define RAD_TO_DEG 180.0/PI
+#define DEG_TO_RAD PI/180.0
+
 precision highp float;
 
-vec4[] vertices = vec4[4](vec4(-1.0, -1.0, 0.0, 0.0), vec4(1.0, -1.0, 1.0, 0.0), vec4(-1.0, 1.0, 0.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0));
-void main() {
-    vec4 attributes = vertices[gl_VertexID];
-    gl_Position = vec4(attributes.xy, 0.0, 1.0);
+layout(location = 0) in vec2 a_pos;
+
+uniform mat4 viewMatrix;
+uniform mat4 projMatrix;
+uniform mat4 u_matrix;
+
+out vec4 world_pos;
+out vec4 view_pos;
+out vec4 clip_pos;
+out vec4 screen_pos;
+
+//////// functions ///////////
+float mercatorXfromLng(float lng) {
+    return (180.0 + lng) / 360.0;
 }
+float mercatorYfromLat(float lat) {
+    return (180.0 - (RAD_TO_DEG * log(tan(PI / 4.0 + lat / 2.0 * DEG_TO_RAD)))) / 360.0;
+}
+
+void main() {
+    vec2 pos = vec2(mercatorXfromLng(a_pos.x), mercatorYfromLat(a_pos.y));
+    world_pos = vec4(pos, 0.0, 1.0);
+    // view_pos = viewMatrix * world_pos;
+    // clip_pos = projMatrix * view_pos;
+    // mat4 vp = viewMatrix * projMatrix ;
+    mat4 vp = u_matrix;
+    clip_pos = vp * world_pos;
+    // clip_pos = u_matrix * world_pos;
+    // screen_pos = clip_pos / clip_pos.w;
+    // gl_Position = u_matrix * vec4(pos, 0.0, 1.0);
+    gl_Position = clip_pos;
+}
+
 #endif
-
 #ifdef FRAGMENT_SHADER
-
 precision highp float;
 
 uniform vec2 iResolution; // in pixels
 uniform float iTime; // in seconds
-uniform vec2 iMouse; // xy: current position, zw: click position
+// uniform vec2 iMouse; // xy: current position, zw: click position
 
 out vec4 fragColor;
 
@@ -24,7 +54,7 @@ out vec4 fragColor;
 #define CAMERA_HEIGHT 1.5 // how high the camera should be
 #define ITERATIONS_RAYMARCH 12 // waves iterations of raymarching
 #define ITERATIONS_NORMAL 36 // waves iterations when calculating normals
-#define NormalizedMouse (iMouse.xy / iResolution.xy) // normalize mouse coords
+// #define NormalizedMouse (iMouse.xy / iResolution.xy) // normalize mouse coords
 
 vec2 wavedx(vec2 position, vec2 direction, float frequency, float timeshift) {
     float x = dot(position, direction) * frequency + timeshift;
@@ -143,6 +173,9 @@ void main() {
     vec2 fragCoord = gl_FragCoord.xy;
     vec3 ray = getRay(fragCoord);
 
+    fragColor = vec4(ray, 1.0);
+    return;
+
     //////// render the sky
     if(ray.y >= 0.0) {
         vec3 skyColorbottom = vec3(0.47, 0.73, 1.0);
@@ -182,6 +215,7 @@ void main() {
     vec3 finalReflectColor = mix(skyColorbottom, skyColortop, R.y);
 
     fragColor = vec4(finalReflectColor, 1.0);
+    // fragColor = vec4(0.0, 0.0, 0.0, 1.0);
 
     ///////// DEBUG ///////////
     // vec3 sunPosition = vec3(0.2, 10.0, 0.1);
@@ -204,5 +238,4 @@ void main() {
     // }
 
 }
-
 #endif

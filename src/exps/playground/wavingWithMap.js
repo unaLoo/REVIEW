@@ -3,7 +3,6 @@ import OceanLayer from './oceanLayer'
 
 export const initMap = () => {
 
-    const tk = 'pk.eyJ1IjoibnVqYWJlc2xvbyIsImEiOiJjbGp6Y3czZ2cwOXhvM3FtdDJ5ZXJmc3B4In0.5DCKDt0E2dFoiRhg3yWNRA'
     const EmptyStyle = {
         "version": 8,
         "name": "Empty",
@@ -21,7 +20,6 @@ export const initMap = () => {
     
     // const map = new ScratchMap({
     const map = new mapboxgl.Map({
-        accessToken: tk,
         style: 'mapbox://styles/mapbox/dark-v11',
         container: 'map',
         projection: 'mercator',
@@ -35,6 +33,8 @@ export const initMap = () => {
         map.addLayer(new OceanLayer(
             '/mask/CJ.geojson'
         ))
+    }).on('render',()=>{
+        map.triggerRepaint()
     })
 
 }

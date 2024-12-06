@@ -102,7 +102,7 @@ float calcWave(vec2 position, int iterations) {
 }
 
 // 返回相机射线，想象以相机为原点出发的向量
-vec3 getRay() {
+vec3 getRay(vec2 fragCoord) {
     // vec2 uv = ((fragCoord.xy / iResolution.xy) * 2.0 - 1.0) * vec2(iResolution.x / iResolution.y, 1.0);
     // vec3 proj = normalize(vec3(uv.x, uv.y, CAMERA_HEIGHT));
     // return proj;
@@ -177,9 +177,9 @@ vec3 calcNormal(vec3 pos, float offset, float waterDepth) {
 
 void main() {
 
-    // vec2 fragCoord = gl_FragCoord.xy;
-    // vec3 ray = getRay(fragCoord);
-    vec3 ray = getRay();
+    vec2 fragCoord = gl_FragCoord.xy;
+    vec3 ray = getRay(fragCoord);
+    // vec3 ray = getRay();
 
     //////// render the sky
     // if(ray.y >= 0.0) {
@@ -205,12 +205,11 @@ void main() {
     // calculate normal
     vec3 normal = calcNormal(waterHitPos, 0.0001, waterDepth);
 
+    // smooth the normal with distance to avoid disturbing high frequency noise
+    normal = mix(normal, vec3(0.0, 0.0, 1.0), 0.8 * min(1.0, sqrt(dist * 0.01) * 1.1));
+
     fragColor = vec4(vec3(normal), 1.0);
     return;
-
-
-    // // smooth the normal with distance to avoid disturbing high frequency noise
-    // normal = mix(normal, vec3(0.0, 1.0, 0.0), 0.8 * min(1.0, sqrt(dist * 0.01) * 1.1));
 
     // // ray 是 视线向量, normal是水面像元的法向量, R是反射向量, 应根据R取得反射颜色
     // vec3 R = normalize(reflect(ray, normal));

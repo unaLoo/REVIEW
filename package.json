@@ -19,6 +19,7 @@
     "@types/mapbox__tilebelt": "^1.0.4",
     "@types/mapbox-gl": "^3.1.0",
     "@types/three": "^0.169.0",
+    "@webgpu/types": "^0.1.51",
     "axios": "^1.7.2",
     "d3-delaunay": "^6.0.4",
     "dat.gui": "^0.7.9",

@@ -11,7 +11,7 @@ export const main = async () => {
 
     // init
     const device = await lib.requesDevice();
-    const context = lib.initGPUContext("playground", device);
+    // const context = lib.initGPUContext("playground", device);
 
     // module
     const module = device.createShaderModule({
@@ -39,12 +39,7 @@ export const main = async () => {
     })
     device.queue.writeBuffer(inputBuffer, 0, inputData)
 
-    const resultBuffer = device.createBuffer({
-        'label': "resultBuffer",
-        'size': inputData.byteLength,
-        'usage': GPUBufferUsage.MAP_READ | // map data to read
-            GPUBufferUsage.COPY_DST  // copy data to buffer
-    })
+    const resultBuffer = lib.createMapReadBuffer(device, inputData.byteLength)
 
     const bindGroup = device.createBindGroup({
         label: 'bindGroup',
@@ -53,14 +48,13 @@ export const main = async () => {
             {
                 "binding": 0,
                 "resource": {
-                    "buffer": resultBuffer,
+                    "buffer": inputBuffer,
                 }
             }
         ]
     })
 
-    const computeIt = () => {
-
+    const computeIt = async () => {
         const encoder = device.createCommandEncoder()
         // compute
         const computePass = encoder.beginComputePass({
@@ -72,12 +66,17 @@ export const main = async () => {
         computePass.end()
 
         // map and read
-        encoder.copyBufferToBuffer(inputBuffer, 0, resultBuffer, 0, inputData.byteLength)
+        encoder.copyBufferToBuffer(inputBuffer, 0, resultBuffer, 0, resultBuffer.size)
+
+        const commandBuffer = encoder.finish();
+        device.queue.submit([commandBuffer]);
+
         resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
             const resultData = new Float32Array(resultBuffer.getMappedRange())
             console.log('inputData', inputData)
             console.log('resultData', resultData)
             resultBuffer.unmap()
+
         })
     }
 

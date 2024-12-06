@@ -17,6 +17,7 @@ export async function main() {
   const context = lib.initGPUContext("playground", device);
   lib.resize(context.canvas)
 
+
   //// Create the shader module
   // const module = lib.createModule(device, "module", triangleWGSL) 
   const module = device.createShaderModule({
@@ -37,7 +38,7 @@ export async function main() {
       "entryPoint": "fs_main",
       "targets": [
         {
-          "format": context.getConfiguration().format
+          "format": context.presentationFormat
         }
       ]
     }

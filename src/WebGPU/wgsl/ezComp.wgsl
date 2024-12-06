@@ -5,6 +5,7 @@
 fn c_main(
     @builtin(global_invocation_id) id: vec3u
 ){
-    let i:u32 = id.x;
+    let i = id.x;
     data[i] = data[i] * 2.0;
+    // data[i] = 100.0;
 }

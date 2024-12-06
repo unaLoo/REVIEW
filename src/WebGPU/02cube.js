@@ -46,10 +46,12 @@ export const main = async () => {
 
 
     /////////////////// vertex buffers ////////////////////////////////
-    const positions = new Float32Array([1, 1, -1, 1, 1, 1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1, -1, -1, -1, -1, -1, 1, -1, 1, 1, 1, 1, 1, 1, 1, -1, -1, 1, -1, -1, -1, -1, 1, -1, -1, 1, -1, 1, -1, -1, 1, 1, 1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1, 1, -1, 1, 1, -1, 1, -1, -1, -1, -1, -1]);
-    const normals = new Float32Array([1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1]);
-    const texcoords = new Float32Array([1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1]);
-    const indices = new Uint16Array([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23]);
+    // const {
+    //     positions, normals, texcoords, indices
+    // } = lib.oneCube()
+    const {
+        positions, normals, texcoords, indices
+    } = lib.oneBall(18, 36, 1)
 
     const positionBuffer = lib.createBuffer(device, positions, GPUBufferUsage.VERTEX)
     const normalBuffer = lib.createBuffer(device, normals, GPUBufferUsage.VERTEX)
@@ -176,7 +178,7 @@ export const main = async () => {
     })
 
 
-    const cubeCount = 100
+    const cubeCount = 500
     const cubeInfos = []
     for (let i = 0; i < cubeCount; i++) {
         // 这里有点像uniformLocation
@@ -217,7 +219,7 @@ export const main = async () => {
         const across = Math.sqrt(cubeCount) | 0;
         const x = (i % across - (across - 1) / 2) * 3;
         const y = ((i / across | 0) - (across - 1) / 2) * 3;
-        // const z = 
+        const z = Math.sin(x)
 
         cubeInfos.push({
             vsUniformBuffer,
@@ -227,7 +229,7 @@ export const main = async () => {
             projectionMatrix,
             normalMatrix,
             bindGroup,
-            translation: [x, y, 0],
+            translation: [x, y, z],
         })
 
 
@@ -440,12 +442,14 @@ export const main = async () => {
 
     const gui = new Dat.GUI()
     const cameraFolder = gui.addFolder('camera')
-    cameraFolder.add(camera.position, 0, -10, 10).name('camera X').step(0.1)
-    cameraFolder.add(camera.position, 1, -10, 10).name('camera Y').step(0.1)
-    cameraFolder.add(camera.position, 2, -10, 10).name('camera Z').step(0.1)
+    cameraFolder.add(camera.position, 0, -100, 100).name('camera X').step(0.1)
+    cameraFolder.add(camera.position, 1, -100, 100).name('camera Y').step(0.1)
+    cameraFolder.add(camera.position, 2, -100, 100).name('camera Z').step(0.1)
+    cameraFolder.add(camera, "near", 0, 10)
+    cameraFolder.add(camera, "far", 50, 500)
     const lightingFolder = gui.addFolder('lighting')
-    lightingFolder.add(lighting.lightDir, 0, -10, 10).name('light X').step(0.1)
-    lightingFolder.add(lighting.lightDir, 1, -10, 10).name('light X').step(0.1)
-    lightingFolder.add(lighting.lightDir, 2, -10, 10).name('light X').step(0.1)
+    lightingFolder.add(lighting.lightDir, 0, -100, 100).name('light X').step(0.1)
+    lightingFolder.add(lighting.lightDir, 1, -100, 100).name('light X').step(0.1)
+    lightingFolder.add(lighting.lightDir, 2, -100, 100).name('light X').step(0.1)
 
 }

@@ -100,3 +100,86 @@ export const loadImageBitmap = async (url) => {
     return await createImageBitmap(blob, { colorSpaceConversion: 'none' });
 }
 //#endregion
+
+
+
+
+//#region  generate common geometry
+
+export const oneCube = () => {
+    const positions = new Float32Array([1, 1, -1, 1, 1, 1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1, -1, -1, -1, -1, -1, 1, -1, 1, 1, 1, 1, 1, 1, 1, -1, -1, 1, -1, -1, -1, -1, 1, -1, -1, 1, -1, 1, -1, -1, 1, 1, 1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1, 1, -1, 1, 1, -1, 1, -1, -1, -1, -1, -1]);
+    const normals = new Float32Array([1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1]);
+    const texcoords = new Float32Array([1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1]);
+    const indices = new Uint16Array([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23]);
+    return {
+        positions, normals, texcoords, indices
+    }
+}
+
+export const oneBall = (numLatitudeBands, numLongitudeBands, radius) => {
+    // 顶点数组
+    const positions = [];
+    // 法向量数组
+    const normals = [];
+    // 纹理坐标数组
+    const texcoords = [];
+    // 索引数组
+    const indices = [];
+
+    // 生成顶点、法向量和纹理坐标
+    for (let latNumber = 0; latNumber <= numLatitudeBands; latNumber++) {
+        const theta = latNumber * Math.PI / numLatitudeBands;
+        const sinTheta = Math.sin(theta);
+        const cosTheta = Math.cos(theta);
+
+        for (let longNumber = 0; longNumber <= numLongitudeBands; longNumber++) {
+            const phi = longNumber * 2 * Math.PI / numLongitudeBands;
+            const sinPhi = Math.sin(phi);
+            const cosPhi = Math.cos(phi);
+
+            const x = cosPhi * sinTheta;
+            const y = cosTheta;
+            const z = sinPhi * sinTheta;
+
+            const u = 1 - (longNumber / numLongitudeBands);
+            const v = 1 - (latNumber / numLatitudeBands);
+
+            positions.push(radius * x);
+            positions.push(radius * y);
+            positions.push(radius * z);
+
+            normals.push(x);
+            normals.push(y);
+            normals.push(z);
+
+            texcoords.push(u);
+            texcoords.push(v);
+        }
+    }
+
+    // 生成索引
+    for (let latNumber = 0; latNumber < numLatitudeBands; latNumber++) {
+        for (let longNumber = 0; longNumber < numLongitudeBands; longNumber++) {
+            const first = (latNumber * (numLongitudeBands + 1)) + longNumber;
+            const second = first + numLongitudeBands + 1;
+
+            indices.push(first);
+            indices.push(second);
+            indices.push(first + 1);
+
+            indices.push(second);
+            indices.push(second + 1);
+            indices.push(first + 1);
+        }
+    }
+    const positionsArray = new Float32Array(positions);
+    const normalsArray = new Float32Array(normals);
+    const texcoordsArray = new Float32Array(texcoords);
+    const indicesArray = new Uint16Array(indices);
+    return {
+        positions: positionsArray,
+        normals: normalsArray,
+        texcoords: texcoordsArray,
+        indices: indicesArray
+    }
+}

@@ -97,7 +97,7 @@ export const lerp = (a, b, t) => (1 - t) * a + t * b;
 export const loadImageBitmap = async (url) => {
     const res = await fetch(url);
     const blob = await res.blob();
-    return await createImageBitmap(blob, { colorSpaceConversion: 'none' });
+    return await createImageBitmap(blob, { "premultiplyAlpha": "none", "colorSpaceConversion": "none" });
 }
 //#endregion
 

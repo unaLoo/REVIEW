@@ -13,7 +13,7 @@ export const main = async () => {
 
 
     const camera = {
-        position: [0, 0, 30],
+        position: [0, 0, 70],
         target: [0, 0, 0],
         up: [0, 1, 0],
         fov: 45 * Math.PI / 180,
@@ -22,8 +22,8 @@ export const main = async () => {
         far: 100
     }
     const lighting = {
-        // lightPos: [1, 1, 15], 
-        lightDir: [1, 1, 15],
+        lightPos: [1, 1, -15],
+        // lightDir: [1, 1, 15],
     }
 
 
@@ -60,55 +60,52 @@ export const main = async () => {
 
 
     /////////////////// texture and sampler ////////////////////////////////
-    // const imgBitmap = await lib.loadImageBitmap('/images/Earth/dark.jpg')
-    // const texture = device.createTexture({
-    //     "label": 'texture',
-    //     "format": 'rgba8unorm',
-    //     "size": [imgBitmap.width, imgBitmap.height],
-    //     "usage": GPUTextureUsage.TEXTURE_BINDING |
-    //         GPUTextureUsage.COPY_DST
-    //     //为了在着色器中使用纹理
-    //     // 为了可以存数据到纹理
-    // })
-    // device.queue.copyExternalImageToTexture(
-    //     {
-    //         "source": imgBitmap,
-    //         "flipY": true,
-    //         // "origin": [0, 0],
-    //     },
-    //     {
-    //         "texture": texture,
-    //         // "mipLevel": 0,
-    //         // "aspect": "all",
-    //         // "colorSpace": "srgb",
-    //         // "mipLevel": 0,
-    //         // "premultipliedAlpha": false,
-    //     },
-    //     {
-    //         // "depthOrArrayLayers": 1,
-    //         "height": imgBitmap.height,
-    //         "width": imgBitmap.width,
-    //     }
-    // )
-
+    const url = '/images/Earth/earth.jpg';
+    const imgBitmap = await lib.loadImageBitmap(url)
+    console.log(imgBitmap)
     const texture = device.createTexture({
-        size: [2, 2],
-        format: 'rgba8unorm',
-        usage:
-            GPUTextureUsage.TEXTURE_BINDING |
-            GPUTextureUsage.COPY_DST,
-    });
-    device.queue.writeTexture(
-        { texture: texture },
-        new Uint8Array([
-            255, 255, 128, 255,
-            128, 255, 255, 255,
-            255, 128, 255, 255,
-            255, 128, 128, 255,
-        ]),
-        { bytesPerRow: 8, rowsPerImage: 2 },
-        { width: 2, height: 2 },
-    );
+        "label": 'texture',
+        "format": 'rgba8unorm',
+        "size": [imgBitmap.width, imgBitmap.height],
+        "usage": GPUTextureUsage.TEXTURE_BINDING |
+            GPUTextureUsage.COPY_DST |
+            GPUTextureUsage.RENDER_ATTACHMENT
+        //为了在着色器中使用纹理
+        // 为了可以存数据到纹理
+    })
+    device.queue.copyExternalImageToTexture(
+        {
+            "source": imgBitmap,
+            "flipY": true,
+        },
+        {
+            "texture": texture,
+        },
+        {
+            "height": imgBitmap.height,
+            "width": imgBitmap.width,
+        }
+    )
+
+
+    // const texture = device.createTexture({
+    //     size: [2, 2],
+    //     format: 'rgba8unorm',
+    //     usage:
+    //         GPUTextureUsage.TEXTURE_BINDING |
+    //         GPUTextureUsage.COPY_DST,
+    // });
+    // device.queue.writeTexture(
+    //     { texture: texture },
+    //     new Uint8Array([
+    //         255, 255, 128, 255,
+    //         128, 255, 255, 255,
+    //         255, 128, 255, 255,
+    //         255, 128, 128, 255,
+    //     ]),
+    //     { bytesPerRow: 8, rowsPerImage: 2 },
+    //     { width: 2, height: 2 },
+    // );
 
     const sampler = device.createSampler({
         "label": 'sampler',
@@ -136,7 +133,7 @@ export const main = async () => {
         "usage": GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     })
     const fsUniformValues = new Float32Array(1 * 3); // 1 vec3
-    const lightDirection = fsUniformValues.subarray(0, 3);
+    const lightPositon = fsUniformValues.subarray(0, 3);
     // sharing bindGroup layout
     const bindGroupLayout = device.createBindGroupLayout({
         "label": 'bindGroupLayout',
@@ -219,7 +216,7 @@ export const main = async () => {
         const across = Math.sqrt(cubeCount) | 0;
         const x = (i % across - (across - 1) / 2) * 3;
         const y = ((i / across | 0) - (across - 1) / 2) * 3;
-        const z = Math.sin(x)
+        const z = Math.sqrt(x * x + y * y) * 2
 
         cubeInfos.push({
             vsUniformBuffer,
@@ -398,7 +395,7 @@ export const main = async () => {
         const viewMatrixValue = mat4.lookAt(mat4.create(), position, target, up)
         const projMatrixValue = mat4.perspective(mat4.create(), fov, aspect, near, far)
 
-        vec3.normalize(lightDirection, lighting.lightDir)
+        vec3.normalize(lightPositon, lighting.lightPos)
         device.queue.writeBuffer(fsUniformBuffer, 0, fsUniformValues)
 
         cubeInfos.forEach((cubeInfo, ndx) => {
@@ -447,9 +444,17 @@ export const main = async () => {
     cameraFolder.add(camera.position, 2, -100, 100).name('camera Z').step(0.1)
     cameraFolder.add(camera, "near", 0, 10)
     cameraFolder.add(camera, "far", 50, 500)
+    cameraFolder.open()
     const lightingFolder = gui.addFolder('lighting')
-    lightingFolder.add(lighting.lightDir, 0, -100, 100).name('light X').step(0.1)
-    lightingFolder.add(lighting.lightDir, 1, -100, 100).name('light X').step(0.1)
-    lightingFolder.add(lighting.lightDir, 2, -100, 100).name('light X').step(0.1)
+    lightingFolder.add(lighting.lightPos, 0, -100, 100).name('light X').step(0.1)
+    lightingFolder.add(lighting.lightPos, 1, -100, 100).name('light X').step(0.1)
+    lightingFolder.add(lighting.lightPos, 2, -100, 100).name('light X').step(0.1)
+    lightingFolder.open()
+}
 
+
+async function loadImageBitmap(url) {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return await createImageBitmap(blob, { colorSpaceConversion: 'none' });
 }

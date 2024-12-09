@@ -33,7 +33,8 @@
     "three": "^0.169.0",
     "tilebelt": "^1.0.1",
     "twgl.js": "^5.5.4",
-    "vue": "^3.4.21"
+    "vue": "^3.4.21",
+    "webgpu-utils": "^1.9.3"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.4",

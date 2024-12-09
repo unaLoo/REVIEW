@@ -89,6 +89,10 @@ export const createBuffer = (device, data, usage) => {
 
 
 
+
+
+
+
 //#region utils
 
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -99,6 +103,30 @@ export const loadImageBitmap = async (url) => {
     const blob = await res.blob();
     return await createImageBitmap(blob, { "premultiplyAlpha": "none", "colorSpaceConversion": "none" });
 }
+//#endregion
+
+
+
+
+//#region memorylayout 
+
+import {
+    makeShaderDataDefinitions,
+    makeStructuredView,
+} from 'webgpu-utils'
+
+export const getUniformValues = (code) => {
+    const defs = makeShaderDataDefinitions(code);
+    const uniformBufferInfos = {}
+    for (let u in defs.uniforms) {
+        const uniformValues = makeStructuredView(defs.uniforms[u]);
+        uniformBufferInfos[u] = uniformValues
+    }
+    return uniformBufferInfos;
+}
+
+
+
 //#endregion
 
 
@@ -183,3 +211,4 @@ export const oneBall = (numLatitudeBands, numLongitudeBands, radius) => {
         indices: indicesArray
     }
 }
+//#endregion

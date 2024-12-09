@@ -41,6 +41,8 @@ export const main = async () => {
         "label": 'module',
         "code": cubeCode,
     })
+    const uniValues = lib.getUniformValues(cubeCode)
+    console.log(uniValues)
 
 
 
@@ -51,7 +53,7 @@ export const main = async () => {
     // } = lib.oneCube()
     const {
         positions, normals, texcoords, indices
-    } = lib.oneBall(18, 36, 2)
+    } = lib.oneBall(18, 36, 1)
 
     const positionBuffer = lib.createBuffer(device, positions, GPUBufferUsage.VERTEX)
     const normalBuffer = lib.createBuffer(device, normals, GPUBufferUsage.VERTEX)
@@ -62,7 +64,6 @@ export const main = async () => {
     /////////////////// texture and sampler ////////////////////////////////
     const url = '/images/Earth/earth.jpg';
     const imgBitmap = await lib.loadImageBitmap(url)
-    console.log(imgBitmap)
     const texture = device.createTexture({
         "label": 'texture',
         "format": 'rgba8unorm',
@@ -132,8 +133,10 @@ export const main = async () => {
         "size": 4 * 16 * 3, // 4 vec3
         "usage": GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     })
-    const fsUniformValues = new Float32Array(1 * 3); // 1 vec3
-    const lightPositon = fsUniformValues.subarray(0, 3);
+    const fsUniformValues = uniValues.fsUniform.arrayBuffer
+    // const fsUniformValues = new Float32Array(1 * 3); // 1 vec3
+    const lightPosition = uniValues.fsUniform.views.lightPos
+    // const lightPositon = fsUniformValues.subarray(0, 3);
     // sharing bindGroup layout
     const bindGroupLayout = device.createBindGroupLayout({
         "label": 'bindGroupLayout',
@@ -175,15 +178,16 @@ export const main = async () => {
     })
 
 
-    const cubeCount = 16
+    const cubeCount = 128
     const cubeInfos = []
     for (let i = 0; i < cubeCount; i++) {
         // 这里有点像uniformLocation
-        const vsUniformValues = new Float32Array(4 * 16);// 4 mat4x4f
-        const modelMatrix = vsUniformValues.subarray(0, 1 * 16);
-        const viewMatrix = vsUniformValues.subarray(1 * 16, 2 * 16);
-        const projectionMatrix = vsUniformValues.subarray(2 * 16, 3 * 16);
-        const normalMatrix = vsUniformValues.subarray(3 * 16, 4 * 16);
+        // const vsUniformValues = new Float32Array(4 * 16);// 4 mat4x4f
+        const vsUniformValues = uniValues.vsUniform.arrayBuffer
+        const modelMatrix = uniValues.vsUniform.views.modelMat
+        const viewMatrix = uniValues.vsUniform.views.viewMat
+        const projectionMatrix = uniValues.vsUniform.views.projMat
+        const normalMatrix = uniValues.vsUniform.views.normalMat
         const vsUniformBuffer = device.createBuffer({
             "label": 'vsUniformBuffer' + i,
             "size": 4 * 16 * 4, // 4  mat4x4f
@@ -217,7 +221,7 @@ export const main = async () => {
         const x = (i % across - (across - 1) / 2) * 3;
         const y = ((i / across | 0) - (across - 1) / 2) * 3;
         const z = Math.sqrt(x * x + y * y) * 2
-    
+
 
         cubeInfos.push({
             vsUniformBuffer,
@@ -396,7 +400,7 @@ export const main = async () => {
         const viewMatrixValue = mat4.lookAt(mat4.create(), position, target, up)
         const projMatrixValue = mat4.perspective(mat4.create(), fov, aspect, near, far)
 
-        vec3.normalize(lightPositon, lighting.lightPos)
+        vec3.normalize(lightPosition, lighting.lightPos)
         device.queue.writeBuffer(fsUniformBuffer, 0, fsUniformValues)
 
         cubeInfos.forEach((cubeInfo, ndx) => {

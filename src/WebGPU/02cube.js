@@ -22,7 +22,7 @@ export const main = async () => {
         far: 100
     }
     const lighting = {
-        lightPos: [1, 1, -15],
+        lightPos: [0, 1, 25],
         // lightDir: [1, 1, 15],
     }
 
@@ -51,7 +51,7 @@ export const main = async () => {
     // } = lib.oneCube()
     const {
         positions, normals, texcoords, indices
-    } = lib.oneBall(18, 36, 1)
+    } = lib.oneBall(18, 36, 2)
 
     const positionBuffer = lib.createBuffer(device, positions, GPUBufferUsage.VERTEX)
     const normalBuffer = lib.createBuffer(device, normals, GPUBufferUsage.VERTEX)
@@ -175,7 +175,7 @@ export const main = async () => {
     })
 
 
-    const cubeCount = 500
+    const cubeCount = 16
     const cubeInfos = []
     for (let i = 0; i < cubeCount; i++) {
         // 这里有点像uniformLocation
@@ -217,6 +217,7 @@ export const main = async () => {
         const x = (i % across - (across - 1) / 2) * 3;
         const y = ((i / across | 0) - (across - 1) / 2) * 3;
         const z = Math.sqrt(x * x + y * y) * 2
+    
 
         cubeInfos.push({
             vsUniformBuffer,
@@ -447,8 +448,8 @@ export const main = async () => {
     cameraFolder.open()
     const lightingFolder = gui.addFolder('lighting')
     lightingFolder.add(lighting.lightPos, 0, -100, 100).name('light X').step(0.1)
-    lightingFolder.add(lighting.lightPos, 1, -100, 100).name('light X').step(0.1)
-    lightingFolder.add(lighting.lightPos, 2, -100, 100).name('light X').step(0.1)
+    lightingFolder.add(lighting.lightPos, 1, -100, 100).name('light Y').step(0.1)
+    lightingFolder.add(lighting.lightPos, 2, -20, 20).name('light Z').step(0.1)
     lightingFolder.open()
 }
 

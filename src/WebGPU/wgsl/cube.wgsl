@@ -6,11 +6,14 @@ struct VertexInput {
 struct VertexOutput {
     @builtin(position) position: vec4f,
     @location(0) normal: vec3f,
-    @location(1) texcoord: vec2f
+    @location(1) texcoord: vec2f,
+    @location(2) worldpos: vec4f
 }
 struct FragmentInput {
+    @builtin(position) fragcoord: vec4f,
     @location(0) normal: vec3f,
-    @location(1) texcoord: vec2f
+    @location(1) texcoord: vec2f,
+    @location(2) worldpos: vec4f
 }
 struct FragmentOutput {
     @location(0) fragColor: vec4f,
@@ -23,7 +26,7 @@ struct VSUniforms {
     normalMat: mat4x4f
 }
 struct FSUniforms {
-    lightDir: vec3f
+    lightPos: vec3f
 }
 
 /////// Uniforms
@@ -46,7 +49,7 @@ fn v_main( vertexInput: VertexInput) -> VertexOutput
     vertexOutput.position = mvpMat * vertexInput.position;
     vertexOutput.normal = (vsUniform.normalMat * vec4(vertexInput.normal, 0.0)).xyz;
     vertexOutput.texcoord = vertexInput.texcoord;
-
+    vertexOutput.worldpos = vertexInput.position;
     return vertexOutput;
 }
 
@@ -55,9 +58,22 @@ fn v_main( vertexInput: VertexInput) -> VertexOutput
 @fragment 
 fn f_main( fragInput: FragmentInput) -> FragmentOutput
 {
+    // var white = vec3(1.0,1.0,1.0);
+    // var black = vec3(0.0,0.0,0.0);
+
+    // let gridIndex = vec2u(fragInput.fragcoord.xy) / 16;
+    // let checker = (gridIndex.x + gridIndex.y) % 2;
+    // let color = select(white, black, checker == 0);
+
+    // var output: FragmentOutput;
+    // output.fragColor = vec4f(color, 1.0);
+
+    // return output;
+
     var diffuseColor = textureSample(diffuseTexture, diffuseSampler, fragInput.texcoord);
     var normalVec = normalize(fragInput.normal);
-    var light = dot(normalVec, fsUniform.lightDir) * 0.5 + 0.5;
+    var lightDir = normalize(fsUniform.lightPos - fragInput.worldpos.xyz);
+    var light = dot(normalVec, fsUniform.lightPos) * 0.5 + 0.5;
 
     var fragOutput: FragmentOutput;
     fragOutput.fragColor = vec4f(diffuseColor.rgb * light, diffuseColor.a);

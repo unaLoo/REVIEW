@@ -403,7 +403,7 @@ export const main = async () => {
         vec3.normalize(lightPosition, lighting.lightPos)
         device.queue.writeBuffer(fsUniformBuffer, 0, fsUniformValues)
 
-        cubeInfos.forEach((cubeInfo, ndx) => {
+        cubeInfos.forEach((cubeInfo, ndx) => { 
             const {
                 vsUniformBuffer,
                 vsUniformValues,

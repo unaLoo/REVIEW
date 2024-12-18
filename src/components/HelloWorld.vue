@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-// import { play } from '../WebGPU/enter.js'
-import { initMap } from "../exps/04PointNoParkinsons/main.ts"
+import { play } from '../WebGPU/enter.js'
+// import { initMap } from "../exps/04PointNoParkinsons/main.ts"
 
 
 onMounted(() => {
 
-  initMap()
-  // play()
+  // initMap()
+  play()
 
 })
 
@@ -16,8 +16,8 @@ onMounted(() => {
 <template>
   <div class="main">
 
-    <!-- <canvas id='playground'></canvas> -->
-    <div id="map"></div>
+    <canvas id='playground'></canvas>
+    <!-- <div id="map"></div> -->
   </div>
 </template>
 

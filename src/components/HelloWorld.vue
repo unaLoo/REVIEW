@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { play } from '../WebGPU/enter.js'
+// import { play } from '../WebGPU/enter.js'
 // import { initMap } from "../exps/04PointNoParkinsons/main.ts"
-
+import { main } from "../exps/11picking/123.js"
 
 onMounted(() => {
 
   // initMap()
-  play()
+  // play()
+  main()
 
 })
 

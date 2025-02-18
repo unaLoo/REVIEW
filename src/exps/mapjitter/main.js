@@ -10,66 +10,58 @@ const highlightLayer = {
 
     onAdd: function (map, gl) {
 
-        // const vertices = [
-        //     // Front face
-        //     -0.5, -0.5, 0.5,  // Bottom-left
-        //     0.5, -0.5, 0.5,  // Bottom-right
-        //     0.5, 0.5, 0.5,  // Top-right
-        //     -0.5, 0.5, 0.5,  // Top-left
 
-        //     // Back face
-        //     -0.5, -0.5, -0.5,  // Bottom-left
-        //     -0.5, 0.5, -0.5,  // Top-left
-        //     0.5, 0.5, -0.5,  // Top-right
-        //     0.5, -0.5, -0.5,  // Bottom-right
-
-        //     // Left face
-        //     -0.5, -0.5, -0.5,  // Bottom-front
-        //     -0.5, -0.5, 0.5,  // Bottom-back
-        //     -0.5, 0.5, 0.5,  // Top-back
-        //     -0.5, 0.5, -0.5,  // Top-front
-
-        //     // Right face
-        //     0.5, -0.5, -0.5,  // Bottom-back
-        //     0.5, -0.5, 0.5,  // Bottom-front
-        //     0.5, 0.5, 0.5,  // Top-front
-        //     0.5, 0.5, -0.5,  // Top-back
-
-        //     // Top face
-        //     -0.5, 0.5, -0.5,  // Top-left-back
-        //     0.5, 0.5, -0.5,  // Top-right-back
-        //     0.5, 0.5, 0.5,  // Top-right-front
-        //     -0.5, 0.5, 0.5,  // Top-left-front
-
-        //     // Bottom face
-        //     -0.5, -0.5, -0.5,  // Bottom-left-back
-        //     -0.5, -0.5, 0.5,  // Bottom-left-front
-        //     0.5, -0.5, 0.5,  // Bottom-right-front
-        //     0.5, -0.5, -0.5   // Bottom-right-back
-        // ];
-        // const indices = [
-        //     // Front face
-        //     0, 1, 2, 0, 2, 3,
-        //     // Back face
-        //     4, 5, 6, 4, 6, 7,
-        //     // Left face
-        //     8, 9, 10, 8, 10, 11,
-        //     // Right face
-        //     12, 13, 14, 12, 14, 15,
-        //     // Top face
-        //     16, 17, 18, 16, 18, 19,
-        //     // Bottom face
-        //     20, 21, 22, 20, 22, 23
-        // ];
-
+        ///// Model Vertex in Local Coordinate
         const vertices = [
-            0.0, 0.0, 0.0,
-            0.0, 1.0, 0.6,
-            1.0, 0.0, 1.0,
-            1.0, 2.0, 1.0
-        ]
+            // Front face
+            -0.5, -0.5, 0.5,  // Bottom-left
+            0.5, -0.5, 0.5,  // Bottom-right
+            0.5, 0.5, 0.5,  // Top-right
+            -0.5, 0.5, 0.5,  // Top-left
+
+            // Back face
+            -0.5, -0.5, -0.5,  // Bottom-left
+            -0.5, 0.5, -0.5,  // Top-left
+            0.5, 0.5, -0.5,  // Top-right
+            0.5, -0.5, -0.5,  // Bottom-right
+
+            // Left face
+            -0.5, -0.5, -0.5,  // Bottom-front
+            -0.5, -0.5, 0.5,  // Bottom-back
+            -0.5, 0.5, 0.5,  // Top-back
+            -0.5, 0.5, -0.5,  // Top-front
+
+            // Right face
+            0.5, -0.5, -0.5,  // Bottom-back
+            0.5, -0.5, 0.5,  // Bottom-front
+            0.5, 0.5, 0.5,  // Top-front
+            0.5, 0.5, -0.5,  // Top-back
+
+            // Top face
+            -0.5, 0.5, -0.5,  // Top-left-back
+            0.5, 0.5, -0.5,  // Top-right-back
+            0.5, 0.5, 0.5,  // Top-right-front
+            -0.5, 0.5, 0.5,  // Top-left-front
+
+            // Bottom face
+            -0.5, -0.5, -0.5,  // Bottom-left-back
+            -0.5, -0.5, 0.5,  // Bottom-left-front
+            0.5, -0.5, 0.5,  // Bottom-right-front
+            0.5, -0.5, -0.5   // Bottom-right-back
+        ];
         const indices = [
-            0, 1, 2, 1, 2, 3
+            // Front face
+            0, 1, 2, 0, 2, 3,
+            // Back face
+            4, 5, 6, 4, 6, 7,
+            // Left face
+            8, 9, 10, 8, 10, 11,
+            // Right face
+            12, 13, 14, 12, 14, 15,
+            // Top face
+            16, 17, 18, 16, 18, 19,
+            // Bottom face
+            20, 21, 22, 20, 22, 23
         ];
         this.idxNum = indices.length
 
@@ -81,14 +73,8 @@ const highlightLayer = {
         } else {
             throw "no valid source cache"
         }
-        const quadVertex = [0, 0, 0, 1, 1, 0, 1, 1]
 
-        // const originPoint = this.originPoint = mapboxgl.MercatorCoordinate.fromLngLat({
-        //     lng: 120.980697,
-        //     lat: 31.684162
-        // })
         const originPoint = this.originPoint = [120.980697, 31.684162]
-
 
         const marker = new mapboxgl.Marker({
             color: 'red',
@@ -111,9 +97,6 @@ const highlightLayer = {
 
         void main() {
 
-            // vec3 pos = vec3(base_tile_pos + a_pos.xy * 2000.0, a_pos.z);
-            // gl_Position = tile_matrix * vec4(pos, 1.0);
-
             mat3 transYZ = mat3(
                 vec3(1.0, 0.0, 0.0),
                 vec3(0.0, 0.0, 1.0),
@@ -125,11 +108,13 @@ const highlightLayer = {
             // as model matrix
             vec3 local_vert_pos = 100.0 * transYZ * a_pos; // meter 
 
+            local_vert_pos.z = 1.0 * local_vert_pos.z;
+
             vec3 vert_pos = tile_pos + vec3(local_vert_pos * vec3(tile_unit_per_meter, tile_unit_per_meter, 1.0));
 
             gl_Position = tile_matrix * vec4(vert_pos, 1.0);
 
-            vv = transYZ * local_vert_pos;
+            vv = a_pos;
         }`;
 
         const fragmentSource = `#version 300 es
@@ -139,7 +124,7 @@ const highlightLayer = {
         out vec4 outColor;
 
         void main() {
-            outColor = vec4(vv / 100.0, 0.8);
+            outColor = vec4(vv, 1.0);
         }
         `;
 
@@ -176,27 +161,17 @@ const highlightLayer = {
     },
 
     render: function (gl, matrix) {
-        console.log(this.proxySourceCache.getVisibleCoordinates().map(coord => coord.canonical.toString()))
 
-        let currentTileMaxZoom = 0
-        for (const coord of this.proxySourceCache.getVisibleCoordinates()) {
-            if (coord.canonical.z > currentTileMaxZoom) currentTileMaxZoom = coord.canonical.z
-        }
+        const targetTile = findTileFromLngLat(this.originPoint[0], this.originPoint[1], this.map);
+        if (!targetTile) return;
 
-        if (this.proxySourceCache.getVisibleCoordinates().length == 0) return
-        console.log('1')
 
-        const targetTile = point2tile(this.originPoint[0], this.originPoint[1], currentTileMaxZoom, this.proxySourceCache)
-        console.log('2')
+        const originInTileCoord = lnglat2TileLocalCoord(this.originPoint, targetTile);
 
-        if (!targetTile) return
-        console.log('3')
-        const originInTileCoord = lnglat2TileCoord(this.originPoint, targetTile)
+        const tileMatrix = targetTile.expandedProjMatrix;
 
-        const tileMatrix = targetTile.expandedProjMatrix
-
-        const meterPerTileUnit = tileToMeter(targetTile.canonical, originInTileCoord[1])
-        const tileUnitPerMeter = 1.0 / meterPerTileUnit
+        const meterPerTileUnit = tileToMeter(targetTile.canonical, originInTileCoord[1]);
+        const tileUnitPerMeter = 1.0 / meterPerTileUnit;
 
         const metersPerPixel = getMetersPerPixelAtLatitude(this.map.transform.center.lat, this.map.transform.zoom);
         const pixelsPerMeter = 1.0 / metersPerPixel;
@@ -214,8 +189,13 @@ const highlightLayer = {
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.idxBuffer);
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
         gl.enable(gl.DEPTH_TEST);
         gl.depthFunc(gl.LESS);
+
+        gl.clear(gl.DEPTH_BUFFER_BIT);
+
+
         gl.drawElements(gl.TRIANGLES, this.idxNum, gl.UNSIGNED_SHORT, 0);
     }
 };
@@ -244,38 +224,49 @@ export const initMap = () => {
 
 // // Helpers //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-function point2tile(lng, lat, zoom, sourceCache) {
 
-    const tiles = sourceCache.getVisibleCoordinates()
-    const targetTileXYZ = tilebelt.pointToTile(lng, lat, Math.floor(zoom))
+/** Find target tile from a lnglat */
+function findTileFromLngLat(lng, lat, map) {
+
+    //// Get any one sourceCache that helps to get the visible tiles
+    const sourceCaches = map.style.getSourceCaches()
+    if (sourceCaches.length === 0) return undefined
+    const tiles = sourceCaches[0].getVisibleCoordinates()
+
+    //// Find target tile
+    //// Get the maximum zoom level for matching the target tile, instead of getting zoom from map.getZoom(). 
+    //// In case there is a limit on the number of tile levels
+    let currentTileMaxZoom = 0
+    tiles.forEach(tile => {
+        if (tile.canonical.z > currentTileMaxZoom) currentTileMaxZoom = tile.canonical.z
+    })
+    const targetTileXYZ = tilebelt.pointToTile(lng, lat, currentTileMaxZoom)
     const targetTile = tiles.find(tile => {
         return tile.canonical.x == targetTileXYZ[0] && tile.canonical.y == targetTileXYZ[1] && tile.canonical.z == targetTileXYZ[2]
     })
     return targetTile
+
 }
 
-function lnglat2TileCoord([lng, lat], tile) {
+
+/** Transform from lnglat to tile local coord  */
+function lnglat2TileLocalCoord([lng, lat], tile) {
+
     const EXTENT = 8192;
     const tileXYZ = [tile.canonical.x, tile.canonical.y, tile.canonical.z]
     const tileBBox = tilebelt.tileToBBOX(tileXYZ)
 
-    const XY = [
+    return [
         Math.floor((lng - tileBBox[0]) / (tileBBox[2] - tileBBox[0]) * EXTENT),
         Math.floor((1.0 - (lat - tileBBox[1]) / (tileBBox[3] - tileBBox[1])) * EXTENT)
     ]
-
-    return XY
 }
 
 
 function tileToMeter(canonical, tileYCoordinate = 0) {
     let ycoord
-    if (canonical.z > 10) {
-        ycoord = 0
-    } else {
-        ycoord = tileYCoordinate
-    }
 
+    canonical.z > 10 ? ycoord = 0 : ycoord = tileYCoordinate
     const EXTENT = 8192;
     const circumferenceAtEquator = 40075017;
     const mercatorY = (canonical.y + ycoord / EXTENT) / (1 << canonical.z);
@@ -289,6 +280,7 @@ function getMetersPerPixelAtLatitude(lat, zoom) {
     const DEFAULT_MAX_ZOOM = 25.5;
     const earthRadius = 6371008.8;
     const earthCircumference = 2 * Math.PI * earthRadius;
+    console.log(earthCircumference)
     const constrainedZoom = clamp(zoom, DEFAULT_MIN_ZOOM, DEFAULT_MAX_ZOOM);
     const constrainedScale = Math.pow(2.0, constrainedZoom);
     return getLatitudeScale(lat) * earthCircumference / (constrainedScale * 512.0);

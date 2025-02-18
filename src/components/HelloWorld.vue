@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { play } from '../WebGPU/enter.js'
+// import { play } from '../WebGPU/enter.js'
+import { initMap } from '../exps/mapjitter/main.js'
 
 
 onMounted(() => {
 
-  play()
+  initMap()
 
 })
 
@@ -14,8 +15,8 @@ onMounted(() => {
 <template>
   <div class="main">
 
-    <canvas id='playground'></canvas>
-    <!-- <div id="map"></div> -->
+    <!-- <canvas id='playground'></canvas> -->
+    <div id="map"></div>
   </div>
 </template>
 

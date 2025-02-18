@@ -113,6 +113,11 @@ const config = {
         'heightMap': '/images/examples/terrain/south_part.png',
         'bbox': [120.2743619179999968, 34.1085865820000009, 120.4035451759999944, 34.2446159220000013],
         'range': [-11., 2]
+    },
+    "CJ": {
+        'heightMap': '/images/examples/terrain/demCJ.png',
+        'bbox': [120.0437360613468201, 31.1739019522094871, 121.9662324011692220, 32.0840108580467813,],
+        'range': [-80.06899999999999, 4.3745]
     }
 }
 
@@ -130,7 +135,7 @@ export const initMap = () => {
     }).on('load', () => {
 
         // map.addLayer(new UnityLayer([ 120.556596, 32.042607 ], 0))
-        map.addLayer(new TerrainLayer(14, config.global))
+        map.addLayer(new TerrainLayer(14, config.CJ))
     })
 }
 

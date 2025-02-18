@@ -68,7 +68,7 @@ export default class TerrainLayer {
 
         // this.interval = 100.0
         this.interval = (this.elevationRange[1] - this.elevationRange[0]) / 10
-        this.color = [43,122,155]
+        this.color = [43, 122, 155]
 
         this.indexNum = 0
     }
@@ -186,7 +186,7 @@ export default class TerrainLayer {
         if (!this.isInitialized) return
 
         this.map.update()
-
+        console.log(this.map.mercatorCenter.toLngLat().toArray(), this.map.cameraBounds)
         this.registerRenderableNode({
             cameraPos: this.map.mercatorCenter.toLngLat().toArray(),
             cameraBounds: this.map.cameraBounds,

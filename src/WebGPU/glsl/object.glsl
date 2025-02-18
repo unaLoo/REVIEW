@@ -38,24 +38,25 @@ uniform vec3 u_light_color;
 uniform vec3 u_camera_pos;
 uniform sampler2D u_texture;
 
-
 out vec4 fragColor;
 
 void main() {
   vec3 baseColor = texture(u_texture, v_texcoord).rgb;
-  fragColor = vec4(baseColor, 1.0);
-  return;
+  // fragColor = vec4(baseColor, 1.0);
 
   vec3 normal = normalize(v_norm);
   vec3 lightDir = normalize(u_lightPos - v_world_pos);
-  vec3 diffuse = max(dot(normal, lightDir), 0.0) * u_light_color;
-  fragColor = vec4(diffuse * baseColor, 1.0);
+  float diffuse = max(dot(normal, lightDir), 0.0);
+  diffuse = clamp(diffuse, 0.0, 1.0);
+  vec3 diffuseColor = diffuse * u_light_color / 255.0 * 1.5; 
+  // fragColor = vec4(diffuseColor * baseColor, 1.0);
 
   vec3 viewDir = normalize(u_camera_pos - v_world_pos);
   vec3 reflectDir = reflect(-lightDir, normal);
-  float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
-  vec3 specular = spec * u_light_color;
-  fragColor = vec4((diffuse + specular) * baseColor, 1.0);
+  float spec = pow(max(dot(viewDir, reflectDir), 0.0), 6.0) ;
+  vec3 specular = spec * u_light_color/ 255.0;
+  fragColor = vec4((diffuseColor + specular) * baseColor, 1.0);
+  // fragColor = vec4(specular, 1.0);
 
 }
 #endif

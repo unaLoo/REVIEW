@@ -125,7 +125,7 @@ void main() {
 
   vec3 result = (ambient + diffuse + specular) * 1.0;
 
-  fragColor = vec4(result, 0.5);
+  fragColor = vec4(v_normal, 0.5);
 
 }
 

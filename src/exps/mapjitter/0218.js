@@ -163,27 +163,23 @@ const highlightLayer = {
 
     render: function (gl, matrix) {
 
-        const tr = this.map.transform
+        // find target mapbox tile and get info needed
+        const targetTile = findTileFromLngLat(this.originPoint[0], this.originPoint[1], this.map);
+        if (!targetTile) return;
 
-        /** target tile in specified point and zoom */
-        const targetTile = point2Tile(this.originPoint[0], this.originPoint[1], Math.floor(tr.zoom));
-
-        /** transform from Local-Tile-Space to Clip-Space */
-        const tileMatrix = calcTileMatrix(tr, targetTile)
-
-        /** lnglat to Local-Tile-Space in specified tile  */
         const originInTileCoord = lnglat2TileLocalCoord(this.originPoint, targetTile);
 
-        // 未被缩放的,整数Zoom 瓦片单位 , 针对 XY 平铺范围
-        const meterPerTileUnit = tileToMeter(targetTile, originInTileCoord[1]);
+        const tileMatrix = targetTile.expandedProjMatrix;
+
+        const myTileMatrix = calcTileMatrix(this.map.transform, targetTile.canonical)
+        console.log(tileMatrix, myTileMatrix)
+
+        const meterPerTileUnit = tileToMeter(targetTile.canonical, originInTileCoord[1]);
         const tileUnitPerMeter = 1.0 / meterPerTileUnit;
 
-        // 考虑了墨卡托坐标纬度方向变形缩放，zoom缩放， Mapbox的shader里是乘在Z坐标上。 
-        // 但是本身tileMatrix中 world2camera 的时候就已经考虑了meterPerPixel。感觉不乘反而看起来正常
-        const metersPerPixel = getMetersPerPixelAtLatitude(tr.center.lat, tr.zoom);
+        const metersPerPixel = getMetersPerPixelAtLatitude(this.map.transform.center.lat, this.map.transform.zoom);
         const pixelsPerMeter = 1.0 / metersPerPixel;
 
-        console.log(tr.zoom, targetTile, meterPerTileUnit, metersPerPixel)
 
         gl.useProgram(this.program);
         gl.uniformMatrix4fv(gl.getUniformLocation(this.program, 'tile_matrix'), false, tileMatrix);
@@ -233,12 +229,6 @@ export const initMap = () => {
 // // Helpers //////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-function point2Tile(lng, lat, z) {
-    const tile = tilebelt.pointToTile(lng, lat, z);
-    return { x: tile[0], y: tile[1], z: tile[2] };
-}
-
-
 /** Find target tile from a lnglat */
 function findTileFromLngLat(lng, lat, map) {
 
@@ -267,7 +257,7 @@ function findTileFromLngLat(lng, lat, map) {
 function lnglat2TileLocalCoord([lng, lat], tile) {
 
     const EXTENT = 8192;
-    const tileXYZ = [tile.x, tile.y, tile.z]
+    const tileXYZ = [tile.canonical.x, tile.canonical.y, tile.canonical.z]
     const tileBBox = tilebelt.tileToBBOX(tileXYZ)
 
     return [
@@ -294,6 +284,7 @@ function getMetersPerPixelAtLatitude(lat, zoom) {
     const DEFAULT_MAX_ZOOM = 25.5;
     const earthRadius = 6371008.8;
     const earthCircumference = 2 * Math.PI * earthRadius;
+    console.log(earthCircumference)
     const constrainedZoom = clamp(zoom, DEFAULT_MIN_ZOOM, DEFAULT_MAX_ZOOM);
     const constrainedScale = Math.pow(2.0, constrainedZoom);
     return getLatitudeScale(lat) * earthCircumference / (constrainedScale * 512.0);
